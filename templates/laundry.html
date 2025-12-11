@@ -1,11 +1,53 @@
 {% extends "base.html" %}
 {% block content %}
 <h2>Laundry booking</h2>
-<p>This will show available slots and booking options.</p>
+
+<!-- Booking form -->
 <form action="/book_laundry" method="post">
-    <input type="date" name="date">
-    <input type="text" name="slot">
+    <label for="date">Date</label>
+    <input type="date" id="date" name="date" required>
+
+    <label for="slot">Slot</label>
+    <select id="slot" name="slot" required>
+        <option value="07:00-09:00">07:00 to 09:00</option>
+        <option value="09:00-11:00">09:00 to 11:00</option>
+        <option value="11:00-13:00">11:00 to 13:00</option>
+        <option value="13:00-15:00">13:00 to 15:00</option>
+        <option value="15:00-17:00">15:00 to 17:00</option>
+        <option value="17:00-19:00">17:00 to 19:00</option>
+    </select>
+
+    <label for="user">Your name</label>
+    <input type="text" id="user" name="user" placeholder="Your name" required>
+
     <button type="submit">Book</button>
 </form>
+
+<hr>
+
+<!-- Current bookings list -->
+<h3>Current bookings</h3>
+{% if bookings %}
+<table>
+    <thead>
+        <tr>
+            <th>Date</th>
+            <th>Slot</th>
+            <th>User</th>
+        </tr>
+    </thead>
+    <tbody>
+    {% for b in bookings %}
+        <tr>
+            <td>{{ b[1] }}</td>
+            <td>{{ b[2] }}</td>
+            <td>{{ b[3] }}</td>
+        </tr>
+    {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p>No bookings yet.</p>
+{% endif %}
 
 {% endblock %}

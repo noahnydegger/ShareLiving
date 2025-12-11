@@ -1,18 +1,26 @@
 import sqlite3
+from pathlib import Path
+
+db_path = Path(__file__).parent / "data.db"
 
 def get_connection():
-    return sqlite3.connect("data.db")
+    # returns a sqlite3 connection object
+    return sqlite3.connect(db_path)
 
-con = sqlite3.connect("data.db")
-cur = con.cursor()
-cur.execute("""
-    create table if not exists laundry_bookings (
-        id integer primary key,
-        date text,
-        slot text,
-        user text
-    )
-""")
-con.commit()
-con.close()
+def init_db():
+    # initializes the database with necessary tables
+    con = get_connection
+    cur = con.cursor()
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS laundry_bookings (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            date TEXT NOT NULL,
+            slot TEXT NOT NULL,
+            user TEXT NOT NULL
+        )
+    """)
+    con.commit()
+    con.close()
+
+
 
