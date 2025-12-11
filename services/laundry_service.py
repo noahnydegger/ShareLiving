@@ -1,4 +1,4 @@
-from database import get_connection
+from data.database import get_connection
 
 def get_bookings():
     """

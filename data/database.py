@@ -9,7 +9,7 @@ def get_connection():
 
 def init_db():
     # initializes the database with necessary tables
-    con = get_connection
+    con = get_connection()
     cur = con.cursor()
     cur.execute("""
         CREATE TABLE IF NOT EXISTS laundry_bookings (

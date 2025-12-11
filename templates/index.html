@@ -1,5 +1,14 @@
 {% extends "base.html" %}
 {% block content %}
 <h1>Welcome to the shared house app</h1>
-<p>Select washing, guestroom or dinner planning from the navigation when added.</p>
+
+<nav>
+    <ul>
+        <li><a href="/laundry">Laundry booking</a></li>
+        <li><a href="/guestroom">Guest room</a></li>
+        <li><a href="/dinner">Dinner planning</a></li>
+    </ul>
+</nav>
+
+<p>Use the links above to book the washing machine, reserve the guest room or indicate dinner attendance.</p>
 {% endblock %}

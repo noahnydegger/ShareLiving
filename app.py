@@ -1,4 +1,5 @@
 from flask import Flask, render_template, request, redirect, flash, url_for
+import os
 from data.database import init_db
 import services.laundry_service as laundry_service
 import services.dinner_service as dinner_service
@@ -50,4 +51,5 @@ def update_dinner():
     return redirect("/dinner")
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port, debug=True)
