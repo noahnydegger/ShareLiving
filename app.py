@@ -1,55 +1,53 @@
-from flask import Flask, render_template, request, redirect, flash, url_for
-import os
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
 from data.database import init_db
-import services.laundry_service as laundry_service
-import services.dinner_service as dinner_service
+from auth import fastapi_users, auth_backend
+from routers import laundry, dinner
 
-app = Flask(__name__)
-app.secret_key = "supersecretkey"
+# -------------------------------------------------------------------
+# App setup
+# -------------------------------------------------------------------
 
-# intialize the database at startup
-init_db()
+app = FastAPI(title="ShareLiving API")
 
-@app.route("/")
-def index():
-    return render_template("index.html")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-@app.route("/laundry")
-def laundry():
-    bookings = laundry_service.get_bookings()
-    return render_template("laundry.html", bookings=bookings)
 
-@app.post("/book_laundry")
-def book_laundry():
-    date = request.form.get("date")
-    slot = request.form.get("slot")
-    user = request.form.get("user") or "anonymous"
-    
-    if not date or not slot or not user:
-        flash("Please fill all fields", "error")
-        return redirect(url_for("laundry"))
-    
-    success = laundry_service.book_slot(date, slot, user)
-    if not success:
-        flash("Slot is already booked. Choose another one.", "error")
-        return redirect(url_for("laundry"))
-    
-    flash("Booking successful!", "success")
-    return redirect(url_for("laundry"))
+@app.on_event("startup")
+def startup_event():
+    init_db()
 
-@app.route("/dinner")
-def dinner():
-    attendees = dinner_service.get_attendees()
-    cook = dinner_service.get_cook()
-    return render_template("dinner.html", attendees=attendees, cook=cook)
 
-@app.post("/update_dinner")
-def update_dinner():
-    selected_days = request.form.getlist("days")
-    cook = request.form["cook"]
-    dinner_service.update(selected_days, cook)
-    return redirect("/dinner")
+@app.get("/")
+def root():
+    return {"message": "ShareLiving API running"}
 
-if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port, debug=True)
+
+# -------------------------------------------------------------------
+# Routers
+# -------------------------------------------------------------------
+
+app.include_router(laundry.router)
+app.include_router(dinner.router)
+
+# -------------------------------------------------------------------
+# Auth routers
+# -------------------------------------------------------------------
+
+app.include_router(
+    fastapi_users.get_auth_router(auth_backend),
+    prefix="/auth/jwt",
+    tags=["auth"]
+)
+app.include_router(
+    fastapi_users.get_register_router(),
+    prefix="/auth",
+    tags=["auth"]
+)
