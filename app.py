@@ -39,16 +39,18 @@ def book_laundry():
 
 @app.route("/dinner")
 def dinner():
-    attendees = dinner_service.get_attendees()
-    cook = dinner_service.get_cook()
-    return render_template("dinner.html", attendees=attendees, cook=cook)
+    user_id = "demo_user"  # replace with real user system later
+    week_dates = dinner_service.get_week_dates()
+    dinner_data = dinner_service.get_dinner_data(user_id)
+    return render_template("dinner.html", week_dates=week_dates, dinner_data=dinner_data)
 
 @app.post("/update_dinner")
 def update_dinner():
-    selected_days = request.form.getlist("days")
-    cook = request.form["cook"]
-    dinner_service.update(selected_days, cook)
-    return redirect("/dinner")
+    user_id = "demo_user"  # replace with real user system later
+    dinner_service.update_dinner(user_id, request.form)
+    week_dates = dinner_service.get_week_dates()
+    dinner_data = dinner_service.get_dinner_data(user_id)
+    return render_template("dinner.html", week_dates=week_dates, dinner_data=dinner_data)
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))

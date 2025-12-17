@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Dinner Planning</h2>
+
+<!-- Global navigation is already in base.html -->
+
+<form id="dinner-form" hx-post="/update_dinner" hx-target="#dinner-calendar" hx-swap="outerHTML">
+<table id="dinner-calendar">
+    <thead>
+        <tr>
+            <th>Date</th>
+            <th>Eats</th>
+            <th>Brings friends</th>
+            <th>Cooks</th>
+            <th>Total people</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for day in week_dates %}
+        <tr>
+            <td>{{ day }}</td>
+            <td><input type="checkbox" name="eats_{{ day }}" {% if dinner_data[day].eats %}checked{% endif %}></td>
+            <td><input type="checkbox" name="friends_{{ day }}" {% if dinner_data[day].friends %}checked{% endif %}></td>
+            <td><input type="checkbox" name="cooks_{{ day }}" {% if dinner_data[day].cooks %}checked{% endif %}></td>
+            <td>{{ dinner_data[day].total_people }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<button type="submit">Save Dinner Preferences</button>
+</form>
+
+<!-- Optional area for day-specific details -->
+<div id="day-details">
+    <!-- HTMX can replace this div with user lists when a date is clicked -->
+</div>
+
+{% endblock %}
