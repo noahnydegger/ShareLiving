@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>ShareLiving</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<nav>
+    <a href="#" onclick="showSection('home')">Home</a>
+    <a href="#" onclick="showSection('laundry')">Laundry</a>
+    <a href="#" onclick="showSection('dinner')">Dinner</a>
+    <a href="#" onclick="showSection('help')">Help</a>
+    <span id="user-info"></span>
+    <button id="logout-btn" onclick="logout()" style="display:none">Logout</button>
+</nav>
+
+<section id="home">
+    <h1>ShareLiving</h1>
+
+    <section id="login">
+        <h2>Login</h2>
+        <input id="username" placeholder="Username">
+        <input id="password" type="password" placeholder="Password">
+        <button onclick="login()">Login</button>
+        <p id="login-status"></p>
+    </section>
+</section>
+
+<section id="laundry" style="display:none">
+    <h2>Laundry</h2>
+    <button onclick="loadLaundry()">Load laundry bookings</button>
+    <pre id="laundry-output"></pre>
+</section>
+
+<section id="dinner" style="display:none">
+    <h2>Dinner</h2>
+    <button onclick="loadDinner()">Load dinner data</button>
+    <pre id="dinner-output"></pre>
+</section>
+
+<section id="help" style="display:none">
+    <h2>Help</h2>
+    <p>Minimal shared living app.</p>
+</section>
+
+<script src="main.js"></script>
+</body>
+</html>
