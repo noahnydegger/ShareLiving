@@ -4,14 +4,14 @@ from fastapi.staticfiles import StaticFiles
 
 from routers import laundry, dinner
 from data.database import init_db
-from auth import fastapi_users, auth_backend, UserRead, UserCreate
 
-
-# -------------------------------------------------------------------
-# App setup
-# -------------------------------------------------------------------
 
 app = FastAPI(title="ShareLiving API")
+
+
+@app.on_event("startup")
+def on_startup():
+    init_db()
 
 app.add_middleware(
     CORSMiddleware,
@@ -22,39 +22,18 @@ app.add_middleware(
 )
 
 
-# @app.on_event("startup")
-# def startup_event():
-#     init_db()
-
-
 @app.get("/health")
 def health():
     return {"status": "ok"}
 
 
-# -------------------------------------------------------------------
-# Routers
-# -------------------------------------------------------------------
-
+# API routers
 app.include_router(laundry.router)
 app.include_router(dinner.router)
 
-# -------------------------------------------------------------------
-# Auth routers
-# -------------------------------------------------------------------
+# Auth routers (temporarily disabled)
 
-app.include_router(
-    fastapi_users.get_auth_router(auth_backend),
-    prefix="/auth/jwt",
-    tags=["auth"]
-)
-app.include_router(
-    fastapi_users.get_register_router(UserRead, UserCreate),
-    prefix="/auth",
-    tags=["auth"]
-)
-
-
+# Frontend must be mounted last
 app.mount(
     "/",
     StaticFiles(directory="frontend", html=True),

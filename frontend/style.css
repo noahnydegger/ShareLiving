@@ -16,3 +16,19 @@ pre {
     background: #f4f4f4;
     padding: 1rem;
 }
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 1rem;
+}
+
+th, td {
+    border: 1px solid #ddd;
+    padding: 0.5rem;
+    text-align: left;
+}
+
+.laundry-actions button {
+    margin-right: 0.5rem;
+}

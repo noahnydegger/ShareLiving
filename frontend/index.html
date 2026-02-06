@@ -12,30 +12,50 @@
     <a href="#" onclick="showSection('laundry')">Laundry</a>
     <a href="#" onclick="showSection('dinner')">Dinner</a>
     <a href="#" onclick="showSection('help')">Help</a>
-    <span id="user-info"></span>
-    <button id="logout-btn" onclick="logout()" style="display:none">Logout</button>
+
+    <span style="margin-left:auto"></span>
 </nav>
 
 <section id="home">
     <h1>ShareLiving</h1>
-
-    <section id="login">
-        <h2>Login</h2>
-        <input id="username" placeholder="Username">
-        <input id="password" type="password" placeholder="Password">
-        <button onclick="login()">Login</button>
-        <p id="login-status"></p>
-    </section>
 </section>
 
 <section id="laundry" style="display:none">
     <h2>Laundry</h2>
-    <button onclick="loadLaundry()">Load laundry bookings</button>
-    <pre id="laundry-output"></pre>
+    <div class="laundry-actions">
+        <button onclick="showLaundryAdd()">Add booking</button>
+        <button onclick="showLaundryList()">Show bookings</button>
+    </div>
+
+    <div id="laundry-add" style="display:none">
+        <input id="laundry-username" placeholder="Name">
+        <input id="laundry-date" type="date">
+        <input id="laundry-start" type="time">
+        <input id="laundry-end" type="time">
+        <button onclick="addLaundryBooking()">Save booking</button>
+        <p id="laundry-add-status"></p>
+    </div>
+
+    <div id="laundry-list" style="display:none">
+        <table id="laundry-table">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Date</th>
+                    <th>Start</th>
+                    <th>End</th>
+                    <th>Duration</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+        <p id="laundry-list-status"></p>
+    </div>
 </section>
 
 <section id="dinner" style="display:none">
     <h2>Dinner</h2>
+    <input id="dinner-username" placeholder="Username">
     <button onclick="loadDinner()">Load dinner data</button>
     <pre id="dinner-output"></pre>
 </section>

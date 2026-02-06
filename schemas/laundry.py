@@ -1,12 +1,16 @@
 from pydantic import BaseModel
-from datetime import date
+from datetime import date, time
 
 class LaundryBookingIn(BaseModel):
     date: date
-    slot: str
+    username: str
+    start_time: time
+    end_time: time
 
 class LaundryBookingOut(BaseModel):
     id: int
     date: date
-    slot: str
     user: str
+    start_time: time
+    end_time: time
+    duration_minutes: int

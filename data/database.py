@@ -1,14 +1,16 @@
 import os
-from typing import AsyncGenerator
 import psycopg
 from psycopg.rows import dict_row
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
-from sqlalchemy.orm import DeclarativeBase
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+from sqlalchemy.orm import declarative_base, sessionmaker
 from dotenv import load_dotenv
 
 load_dotenv()
 
-DATABASE_URL = os.getenv("DATABASE_URL")
+DATABASE_URL = os.getenv(
+    "DATABASE_URL",
+    "postgresql+asyncpg://postgres:postgres@localhost/shareliving",
+)
 
 # Sync connection string for psycopg (remove +asyncpg)
 SYNC_DATABASE_URL = os.environ.get(
@@ -16,11 +18,16 @@ SYNC_DATABASE_URL = os.environ.get(
     "postgresql://postgres:postgres@localhost/shareliving"
 )
 
-engine = create_async_engine(DATABASE_URL)
-async_session_maker = async_sessionmaker(engine, expire_on_commit=False)
+try:
+    engine = create_async_engine(DATABASE_URL)
+    async_session_maker = sessionmaker(
+        engine, expire_on_commit=False, class_=AsyncSession
+    )
+except ModuleNotFoundError:
+    engine = None
+    async_session_maker = None
 
-class Base(DeclarativeBase):
-    pass
+Base = declarative_base()
 
 def get_connection():
     """
@@ -30,6 +37,10 @@ def get_connection():
     return psycopg.connect(SYNC_DATABASE_URL, row_factory=dict_row)
 
 async def get_async_session() -> AsyncSession:
+    if async_session_maker is None:
+        raise RuntimeError(
+            "Async database session is unavailable; install asyncpg to enable it."
+        )
     async with async_session_maker() as session:
         yield session
 
@@ -46,11 +57,14 @@ def init_db():
                 """
                 CREATE TABLE IF NOT EXISTS users (
                     id SERIAL PRIMARY KEY,
+                    email TEXT UNIQUE NOT NULL,
+                    hashed_password TEXT NOT NULL,
                     username TEXT UNIQUE NOT NULL,
-                    password_hash TEXT NOT NULL,
-                    is_active BOOLEAN DEFAULT TRUE,
-                    is_superuser BOOLEAN DEFAULT FALSE
+                    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+                    is_superuser BOOLEAN NOT NULL DEFAULT FALSE,
+                    is_verified BOOLEAN NOT NULL DEFAULT FALSE
                 )
+
                 """
             )
 
@@ -61,9 +75,31 @@ def init_db():
                     id SERIAL PRIMARY KEY,
                     date DATE NOT NULL,
                     slot TEXT NOT NULL,
+                    start_time TIME NOT NULL,
+                    end_time TIME NOT NULL,
+                    duration_minutes INTEGER NOT NULL,
                     user_id INTEGER NOT NULL REFERENCES users(id),
                     UNIQUE(date, slot)
                 )
+                """
+            )
+
+            cur.execute(
+                """
+                ALTER TABLE laundry_bookings
+                ADD COLUMN IF NOT EXISTS start_time TIME NOT NULL DEFAULT '00:00'
+                """
+            )
+            cur.execute(
+                """
+                ALTER TABLE laundry_bookings
+                ADD COLUMN IF NOT EXISTS end_time TIME NOT NULL DEFAULT '00:00'
+                """
+            )
+            cur.execute(
+                """
+                ALTER TABLE laundry_bookings
+                ADD COLUMN IF NOT EXISTS duration_minutes INTEGER NOT NULL DEFAULT 0
                 """
             )
 
