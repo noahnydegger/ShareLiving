@@ -40,6 +40,26 @@ function readUsername(inputId) {
     return input ? input.value.trim() : "";
 }
 
+function pad2(value) {
+    return String(value).padStart(2, "0");
+}
+
+function formatDate(date) {
+    return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
+}
+
+function getWeekDates() {
+    const dates = [];
+    const base = new Date();
+    base.setHours(0, 0, 0, 0);
+    for (let i = 0; i < 7; i += 1) {
+        const d = new Date(base);
+        d.setDate(base.getDate() + i);
+        dates.push(formatDate(d));
+    }
+    return dates;
+}
+
 /*
     Laundry
 */
@@ -137,25 +157,108 @@ async function loadLaundry() {
 /*
     Dinner
 */
-async function loadDinner() {
+function showDinnerAdd() {
+    document.getElementById("dinner-add").style.display = "block";
+    document.getElementById("dinner-summary").style.display = "none";
+}
+
+function showDinnerSummary() {
+    document.getElementById("dinner-add").style.display = "none";
+    document.getElementById("dinner-summary").style.display = "block";
+    loadDinnerSummary();
+}
+
+function renderDinnerForm() {
+    const tbody = document.querySelector("#dinner-form-table tbody");
+    tbody.innerHTML = "";
+    getWeekDates().forEach((date) => {
+        const row = document.createElement("tr");
+        row.dataset.date = date;
+        row.innerHTML = `
+            <td>${date}</td>
+            <td><input class="dinner-eats" type="checkbox"></td>
+            <td><input class="dinner-cooks" type="checkbox"></td>
+            <td><input class="dinner-guests" type="number" min="0" step="1" value="0"></td>
+        `;
+        tbody.appendChild(row);
+    });
+}
+
+async function submitDinnerAttendance() {
     const username = readUsername("dinner-username");
-    const output = document.getElementById("dinner-output");
+    const status = document.getElementById("dinner-add-status");
+    status.innerText = "";
+
     if (!username) {
-        output.innerText = "Enter a username first.";
+        status.innerText = "Please enter a name.";
         return;
     }
 
-    const response = await fetch(
-        `${API_URL}/api/dinner?username=${encodeURIComponent(username)}`
-    );
+    const rows = document.querySelectorAll("#dinner-form-table tbody tr");
+    const days = Array.from(rows).map((row) => {
+        const eats = row.querySelector(".dinner-eats").checked;
+        const cooks = row.querySelector(".dinner-cooks").checked;
+        let guests = parseInt(row.querySelector(".dinner-guests").value || "0", 10);
+        if (!eats) {
+            guests = 0;
+        }
+        return {
+            date: row.dataset.date,
+            eats: eats,
+            cooks: eats ? cooks : false,
+            guests: guests < 0 ? 0 : guests,
+        };
+    });
+
+    const response = await fetch(`${API_URL}/api/dinner/attendance`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+            username: username,
+            days: days,
+        }),
+    });
 
     if (!response.ok) {
-        output.innerText = "Failed to load dinner data.";
+        const errorText = await response.text();
+        status.innerText = `Failed to save attendance: ${errorText}`;
+        return;
+    }
+
+    status.innerText = "Attendance saved.";
+    showDinnerSummary();
+}
+
+async function loadDinnerSummary() {
+    const status = document.getElementById("dinner-summary-status");
+    const tbody = document.querySelector("#dinner-summary-table tbody");
+    status.innerText = "";
+    tbody.innerHTML = "";
+
+    const response = await fetch(`${API_URL}/api/dinner/summary`);
+    if (!response.ok) {
+        status.innerText = "Failed to load attendance summary.";
         return;
     }
 
     const data = await response.json();
-    output.innerText = JSON.stringify(data, null, 2);
+    if (!data.days.length) {
+        status.innerText = "No attendance data yet.";
+        return;
+    }
+
+    data.days.forEach((day) => {
+        const row = document.createElement("tr");
+        const cooks = day.cooks.length ? day.cooks.join(", ") : "—";
+        row.innerHTML = `
+            <td>${day.date}</td>
+            <td>${cooks}</td>
+            <td>${day.total_people}</td>
+        `;
+        tbody.appendChild(row);
+    });
 }
 
 /*
@@ -169,6 +272,8 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     showLaundryAdd();
+    showDinnerAdd();
+    renderDinnerForm();
 
     ["laundry-username", "dinner-username"].forEach((id) => {
         const input = document.getElementById(id);

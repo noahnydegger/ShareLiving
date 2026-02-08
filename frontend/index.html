@@ -55,9 +55,41 @@
 
 <section id="dinner" style="display:none">
     <h2>Dinner</h2>
-    <input id="dinner-username" placeholder="Username">
-    <button onclick="loadDinner()">Load dinner data</button>
-    <pre id="dinner-output"></pre>
+    <div class="dinner-actions">
+        <button onclick="showDinnerAdd()">Add attendance</button>
+        <button onclick="showDinnerSummary()">Show attendance</button>
+    </div>
+
+    <div id="dinner-add" style="display:none">
+        <input id="dinner-username" placeholder="Name">
+        <table id="dinner-form-table">
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Eats</th>
+                    <th>Cooks</th>
+                    <th>Guests</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+        <button onclick="submitDinnerAttendance()">Save attendance</button>
+        <p id="dinner-add-status"></p>
+    </div>
+
+    <div id="dinner-summary" style="display:none">
+        <table id="dinner-summary-table">
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Cooks</th>
+                    <th>Total people</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+        <p id="dinner-summary-status"></p>
+    </div>
 </section>
 
 <section id="help" style="display:none">

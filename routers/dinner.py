@@ -1,11 +1,10 @@
 
 
-from fastapi import APIRouter, HTTPException, Query
-from typing import Dict
+from fastapi import APIRouter, HTTPException
 
 import services.dinner_service as dinner_service
-from services.user_service import get_or_create_user_id, get_user_id
-from schemas.dinner import DinnerUpdateIn
+from services.user_service import get_or_create_user_id
+from schemas.dinner import DinnerAttendanceIn, DinnerSummaryOut
 
 router = APIRouter(
     prefix="/api/dinner",
@@ -13,31 +12,19 @@ router = APIRouter(
 )
 
 
-@router.get("", response_model=Dict)
-def get_dinner_data(
-    username: str = Query(...),
-):
-    """
-    Return dinner data for the current week for the authenticated user.
-    """
-    if not username.strip():
-        raise HTTPException(status_code=400, detail="Username is required")
-    user_id = get_user_id(username)
-    if user_id is None:
-        return {}
-    return dinner_service.get_dinner_data(user_id)
+@router.get("/summary", response_model=DinnerSummaryOut)
+def get_dinner_summary():
+    return {"days": dinner_service.get_week_summary()}
 
 
-@router.post("")
-def update_dinner(
-    update: DinnerUpdateIn,
+@router.post("/attendance")
+def add_dinner_attendance(
+    attendance: DinnerAttendanceIn,
 ):
-    """
-    Update dinner preferences for the authenticated user.
-    """
-    if not update.username.strip():
+    if not attendance.username.strip():
         raise HTTPException(status_code=400, detail="Username is required")
-    payload = update.dict()
-    payload.pop("username", None)
-    dinner_service.update_dinner(get_or_create_user_id(update.username), payload)
+    dinner_service.upsert_week_attendance(
+        get_or_create_user_id(attendance.username),
+        [day.dict() for day in attendance.days],
+    )
     return {"status": "ok"}

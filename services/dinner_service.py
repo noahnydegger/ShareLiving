@@ -11,64 +11,20 @@ def get_week_dates(start: date = None) -> List[date]:
     return [start + timedelta(days=i) for i in range(7)]
 
 
-def get_dinner_data(user_id: int) -> Dict[str, Dict]:
-    """
-    Return a dictionary keyed by date with:
-    {
-        '2025-12-17': {'eats': True, 'friends': False, 'cooks': False, 'total_people': 2},
-        ...
-    }
-    """
-    week_dates = get_week_dates()
-    data: Dict[str, Dict] = {}
-
+def upsert_week_attendance(user_id: int, days: List[Dict]):
+    week_dates = set(get_week_dates())
     with get_connection() as con:
         with con.cursor() as cur:
-            for d in week_dates:
-                cur.execute(
-                    """
-                    SELECT eats, friends, cooks
-                    FROM dinner_attendance
-                    WHERE date = %s AND user_id = %s
-                    """,
-                    (d, user_id),
-                )
-                row = cur.fetchone()
-                eats = bool(row["eats"]) if row else False
-                friends = bool(row["friends"]) if row else False
-                cooks = bool(row["cooks"]) if row else False
-
-                # Total attendees including friends, join with users table if needed
-                cur.execute(
-                    """
-                    SELECT COALESCE(SUM(eats + friends),0) AS total
-                    FROM dinner_attendance
-                    """
-                )
-                total = cur.fetchone()["total"]
-
-                data[d.isoformat()] = {
-                    "eats": eats,
-                    "friends": friends,
-                    "cooks": cooks,
-                    "total_people": total,
-                }
-    return data
-
-
-def update_dinner(user_id: int, form_data: Dict):
-    """
-    Update dinner preferences for a week for a given user_id.
-
-    form_data keys: eats_<date>, friends_<date>, cooks_<date>
-    """
-    week_dates = get_week_dates()
-    with get_connection() as con:
-        with con.cursor() as cur:
-            for d in week_dates:
-                eats = 1 if form_data.get(f"eats_{d}") == "on" else 0
-                friends = 1 if form_data.get(f"friends_{d}") == "on" else 0
-                cooks = 1 if form_data.get(f"cooks_{d}") == "on" else 0
+            for day in days:
+                d = day["date"]
+                if d not in week_dates:
+                    continue
+                eats = 1 if day.get("eats") else 0
+                cooks = 1 if day.get("cooks") else 0
+                guests = max(int(day.get("guests") or 0), 0)
+                if not eats:
+                    guests = 0
+                    cooks = 0
 
                 # Upsert using PostgreSQL ON CONFLICT
                 cur.execute(
@@ -80,6 +36,46 @@ def update_dinner(user_id: int, form_data: Dict):
                                   friends = EXCLUDED.friends,
                                   cooks = EXCLUDED.cooks
                     """,
-                    (d, user_id, eats, friends, cooks),
+                    (d, user_id, eats, guests, cooks),
                 )
         con.commit()
+
+
+def get_week_summary() -> List[Dict]:
+    week_dates = get_week_dates()
+    summary: List[Dict] = []
+
+    with get_connection() as con:
+        with con.cursor() as cur:
+            for d in week_dates:
+                cur.execute(
+                    """
+                    SELECT COALESCE(SUM(eats + friends), 0) AS total
+                    FROM dinner_attendance
+                    WHERE date = %s
+                    """,
+                    (d,),
+                )
+                total = cur.fetchone()["total"]
+
+                cur.execute(
+                    """
+                    SELECT u.username
+                    FROM dinner_attendance da
+                    JOIN users u ON da.user_id = u.id
+                    WHERE da.date = %s AND da.cooks = 1
+                    ORDER BY u.username
+                    """,
+                    (d,),
+                )
+                cooks = [row["username"] for row in cur.fetchall()]
+
+                summary.append(
+                    {
+                        "date": d,
+                        "cooks": cooks,
+                        "total_people": total,
+                    }
+                )
+
+    return summary
