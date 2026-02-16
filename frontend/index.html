@@ -11,6 +11,7 @@
     <a href="#" onclick="showSection('home')">Home</a>
     <a href="#" onclick="showSection('laundry')">Laundry</a>
     <a href="#" onclick="showSection('dinner')">Dinner</a>
+    <a href="#" onclick="showSection('guestroom')">Guestroom</a>
     <a href="#" onclick="showSection('help')">Help</a>
 
     <span style="margin-left:auto"></span>
@@ -89,6 +90,39 @@
             <tbody></tbody>
         </table>
         <p id="dinner-summary-status"></p>
+    </div>
+</section>
+
+<section id="guestroom" style="display:none">
+    <h2>Guestroom</h2>
+    <div class="guestroom-actions">
+        <button onclick="showGuestroomAdd()">Add booking</button>
+        <button onclick="showGuestroomList()">Show bookings</button>
+    </div>
+
+    <div id="guestroom-add" style="display:none">
+        <input id="guestroom-responsible" placeholder="Responsible name">
+        <input id="guestroom-guest" placeholder="Guest name">
+        <input id="guestroom-start" type="datetime-local">
+        <input id="guestroom-end" type="datetime-local">
+        <button onclick="addGuestroomBooking()">Save booking</button>
+        <p id="guestroom-add-status"></p>
+    </div>
+
+    <div id="guestroom-list" style="display:none">
+        <table id="guestroom-table">
+            <thead>
+                <tr>
+                    <th>Responsible</th>
+                    <th>Guest</th>
+                    <th>Start</th>
+                    <th>End</th>
+                    <th>Duration</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+        <p id="guestroom-list-status"></p>
     </div>
 </section>
 

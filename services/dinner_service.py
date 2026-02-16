@@ -11,7 +11,7 @@ def get_week_dates(start: date = None) -> List[date]:
     return [start + timedelta(days=i) for i in range(7)]
 
 
-def upsert_week_attendance(user_id: int, days: List[Dict]):
+def upsert_week_attendance(user_id: int, house_id: int, days: List[Dict]):
     week_dates = set(get_week_dates())
     with get_connection() as con:
         with con.cursor() as cur:
@@ -29,19 +29,21 @@ def upsert_week_attendance(user_id: int, days: List[Dict]):
                 # Upsert using PostgreSQL ON CONFLICT
                 cur.execute(
                     """
-                    INSERT INTO dinner_attendance (date, user_id, eats, friends, cooks)
-                    VALUES (%s, %s, %s, %s, %s)
-                    ON CONFLICT (date, user_id)
+                    INSERT INTO dinner_attendance (
+                        date, user_id, eats, friends, cooks, house_id
+                    )
+                    VALUES (%s, %s, %s, %s, %s, %s)
+                    ON CONFLICT (date, user_id, house_id)
                     DO UPDATE SET eats = EXCLUDED.eats,
                                   friends = EXCLUDED.friends,
                                   cooks = EXCLUDED.cooks
                     """,
-                    (d, user_id, eats, guests, cooks),
+                    (d, user_id, eats, guests, cooks, house_id),
                 )
         con.commit()
 
 
-def get_week_summary() -> List[Dict]:
+def get_week_summary(house_id: int) -> List[Dict]:
     week_dates = get_week_dates()
     summary: List[Dict] = []
 
@@ -52,9 +54,9 @@ def get_week_summary() -> List[Dict]:
                     """
                     SELECT COALESCE(SUM(eats + friends), 0) AS total
                     FROM dinner_attendance
-                    WHERE date = %s
+                    WHERE date = %s AND house_id = %s
                     """,
-                    (d,),
+                    (d, house_id),
                 )
                 total = cur.fetchone()["total"]
 
@@ -63,10 +65,10 @@ def get_week_summary() -> List[Dict]:
                     SELECT u.username
                     FROM dinner_attendance da
                     JOIN users u ON da.user_id = u.id
-                    WHERE da.date = %s AND da.cooks = 1
+                    WHERE da.date = %s AND da.cooks = 1 AND da.house_id = %s
                     ORDER BY u.username
                     """,
-                    (d,),
+                    (d, house_id),
                 )
                 cooks = [row["username"] for row in cur.fetchall()]
 

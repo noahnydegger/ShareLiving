@@ -1,4 +1,4 @@
-const API_URL = "http://127.0.0.1:8000";
+const API_URL = "/homes/default";
 
 /*
     Section navigation
@@ -27,11 +27,15 @@ function setStoredUsername(username) {
 function syncUsernameInputs(value) {
     const laundryInput = document.getElementById("laundry-username");
     const dinnerInput = document.getElementById("dinner-username");
+    const guestroomInput = document.getElementById("guestroom-responsible");
     if (laundryInput) {
         laundryInput.value = value;
     }
     if (dinnerInput) {
         dinnerInput.value = value;
+    }
+    if (guestroomInput) {
+        guestroomInput.value = value;
     }
 }
 
@@ -262,6 +266,94 @@ async function loadDinnerSummary() {
 }
 
 /*
+    Guestroom
+*/
+function showGuestroomAdd() {
+    document.getElementById("guestroom-add").style.display = "block";
+    document.getElementById("guestroom-list").style.display = "none";
+}
+
+function showGuestroomList() {
+    document.getElementById("guestroom-add").style.display = "none";
+    document.getElementById("guestroom-list").style.display = "block";
+    loadGuestroomBookings();
+}
+
+async function addGuestroomBooking() {
+    const responsible = readUsername("guestroom-responsible");
+    const guestName = document.getElementById("guestroom-guest").value.trim();
+    const startAt = document.getElementById("guestroom-start").value;
+    const endAt = document.getElementById("guestroom-end").value;
+    const status = document.getElementById("guestroom-add-status");
+    status.innerText = "";
+
+    if (!responsible || !guestName || !startAt || !endAt) {
+        status.innerText = "Please fill in all fields.";
+        return;
+    }
+
+    const response = await fetch(`${API_URL}/api/guestroom`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+            responsible_name: responsible,
+            guest_name: guestName,
+            start_at: startAt,
+            end_at: endAt,
+        }),
+    });
+
+    if (!response.ok) {
+        const errorText = await response.text();
+        status.innerText = `Failed to save booking: ${errorText}`;
+        return;
+    }
+
+    status.innerText = "Booking saved.";
+    showGuestroomList();
+}
+
+function formatDateTime(value) {
+    if (!value) {
+        return "";
+    }
+    return value.replace("T", " ").replace(":00", "");
+}
+
+async function loadGuestroomBookings() {
+    const status = document.getElementById("guestroom-list-status");
+    const tableBody = document.querySelector("#guestroom-table tbody");
+    status.innerText = "";
+    tableBody.innerHTML = "";
+
+    const response = await fetch(`${API_URL}/api/guestroom`);
+    if (!response.ok) {
+        status.innerText = "Failed to load guestroom bookings.";
+        return;
+    }
+
+    const data = await response.json();
+    if (!data.length) {
+        status.innerText = "No bookings yet.";
+        return;
+    }
+
+    data.forEach((booking) => {
+        const row = document.createElement("tr");
+        row.innerHTML = `
+            <td>${booking.responsible_name}</td>
+            <td>${booking.guest_name}</td>
+            <td>${formatDateTime(booking.start_at)}</td>
+            <td>${formatDateTime(booking.end_at)}</td>
+            <td>${formatDuration(booking.duration_minutes)}</td>
+        `;
+        tableBody.appendChild(row);
+    });
+}
+
+/*
     Initialize UI on page load
 */
 document.addEventListener("DOMContentLoaded", () => {
@@ -274,8 +366,9 @@ document.addEventListener("DOMContentLoaded", () => {
     showLaundryAdd();
     showDinnerAdd();
     renderDinnerForm();
+    showGuestroomAdd();
 
-    ["laundry-username", "dinner-username"].forEach((id) => {
+    ["laundry-username", "dinner-username", "guestroom-responsible"].forEach((id) => {
         const input = document.getElementById(id);
         if (!input) {
             return;

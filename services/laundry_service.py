@@ -3,7 +3,7 @@ from datetime import date, time
 from data.database import get_connection
 
 
-def get_bookings(user_id: Optional[int] = None) -> List[Dict]:
+def get_bookings(house_id: int, user_id: Optional[int] = None) -> List[Dict]:
     """
     Return all laundry bookings as a list of dictionaries.
 
@@ -19,8 +19,10 @@ def get_bookings(user_id: Optional[int] = None) -> List[Dict]:
                            u.username AS user
                     FROM laundry_bookings lb
                     JOIN users u ON lb.user_id = u.id
+                    WHERE lb.house_id = %s
                     ORDER BY lb.date, lb.start_time
-                    """
+                    """,
+                    (house_id,),
                 )
             else:
                 cur.execute(
@@ -29,10 +31,10 @@ def get_bookings(user_id: Optional[int] = None) -> List[Dict]:
                            u.username AS user
                     FROM laundry_bookings lb
                     JOIN users u ON lb.user_id = u.id
-                    WHERE lb.user_id = %s
+                    WHERE lb.user_id = %s AND lb.house_id = %s
                     ORDER BY lb.date, lb.start_time
                     """,
-                    (user_id,),
+                    (user_id, house_id),
                 )
             rows = cur.fetchall()
 
@@ -55,6 +57,7 @@ def book_slot(
     end_time: time,
     duration_minutes: int,
     user_id: int,
+    house_id: int,
 ) -> bool:
     """
     Create a laundry booking for a given user_id.
@@ -69,9 +72,9 @@ def book_slot(
                 cur.execute(
                     """
                     INSERT INTO laundry_bookings (
-                        date, slot, start_time, end_time, duration_minutes, user_id
+                        date, slot, start_time, end_time, duration_minutes, user_id, house_id
                     )
-                    VALUES (%s, %s, %s, %s, %s, %s)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
                     """,
                     (
                         date_,
@@ -80,6 +83,7 @@ def book_slot(
                         end_time,
                         duration_minutes,
                         user_id,
+                        house_id,
                     ),
                 )
         return True
