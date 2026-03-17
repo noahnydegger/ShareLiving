@@ -3,7 +3,7 @@ from datetime import date, time
 from data.database import get_connection
 
 
-def get_bookings(house_id: int, user_id: Optional[int] = None) -> List[Dict]:
+def get_bookings(house_id: int, person_id: Optional[int] = None) -> List[Dict]:
     """
     Return all laundry bookings as a list of dictionaries.
 
@@ -12,13 +12,14 @@ def get_bookings(house_id: int, user_id: Optional[int] = None) -> List[Dict]:
     """
     with get_connection() as con:
         with con.cursor() as cur:
-            if user_id is None:
+            if person_id is None:
                 cur.execute(
                     """
                     SELECT lb.id, lb.date, lb.start_time, lb.end_time, lb.duration_minutes,
-                           u.username AS user
+                           COALESCE(p.name, u.username) AS person_name
                     FROM laundry_bookings lb
-                    JOIN users u ON lb.user_id = u.id
+                    LEFT JOIN people p ON lb.person_id = p.id
+                    LEFT JOIN users u ON lb.user_id = u.id
                     WHERE lb.house_id = %s
                     ORDER BY lb.date, lb.start_time
                     """,
@@ -28,13 +29,14 @@ def get_bookings(house_id: int, user_id: Optional[int] = None) -> List[Dict]:
                 cur.execute(
                     """
                     SELECT lb.id, lb.date, lb.start_time, lb.end_time, lb.duration_minutes,
-                           u.username AS user
+                           COALESCE(p.name, u.username) AS person_name
                     FROM laundry_bookings lb
-                    JOIN users u ON lb.user_id = u.id
-                    WHERE lb.user_id = %s AND lb.house_id = %s
+                    LEFT JOIN people p ON lb.person_id = p.id
+                    LEFT JOIN users u ON lb.user_id = u.id
+                    WHERE lb.person_id = %s AND lb.house_id = %s
                     ORDER BY lb.date, lb.start_time
                     """,
-                    (user_id, house_id),
+                    (person_id, house_id),
                 )
             rows = cur.fetchall()
 
@@ -42,7 +44,7 @@ def get_bookings(house_id: int, user_id: Optional[int] = None) -> List[Dict]:
         {
             "id": row["id"],
             "date": row["date"],
-            "user": row["user"],
+            "person_name": row["person_name"],
             "start_time": row["start_time"],
             "end_time": row["end_time"],
             "duration_minutes": row["duration_minutes"],
@@ -56,7 +58,7 @@ def book_slot(
     start_time: time,
     end_time: time,
     duration_minutes: int,
-    user_id: int,
+    person_id: int,
     house_id: int,
 ) -> bool:
     """
@@ -72,7 +74,7 @@ def book_slot(
                 cur.execute(
                     """
                     INSERT INTO laundry_bookings (
-                        date, slot, start_time, end_time, duration_minutes, user_id, house_id
+                        date, slot, start_time, end_time, duration_minutes, person_id, house_id
                     )
                     VALUES (%s, %s, %s, %s, %s, %s, %s)
                     """,
@@ -82,7 +84,7 @@ def book_slot(
                         start_time,
                         end_time,
                         duration_minutes,
-                        user_id,
+                        person_id,
                         house_id,
                     ),
                 )

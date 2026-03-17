@@ -3,7 +3,7 @@ from datetime import datetime
 from typing import List, Optional
 
 import services.laundry_service as laundry_service
-from services.user_service import get_or_create_user_id, get_user_id
+from services.people_service import get_person
 from data.house_context import get_current_house_id
 from schemas.laundry import LaundryBookingIn, LaundryBookingOut
 
@@ -15,7 +15,7 @@ router = APIRouter(
 
 @router.get("", response_model=List[LaundryBookingOut])
 def get_laundry_bookings(
-    username: Optional[str] = Query(default=None),
+    person_id: Optional[int] = Query(default=None),
     house_id: int = Depends(get_current_house_id),
 ):
     """
@@ -24,12 +24,9 @@ def get_laundry_bookings(
     The authenticated user is injected automatically,
     but bookings are currently visible to all users.
     """
-    user_id = None
-    if username:
-        user_id = get_user_id(username)
-        if user_id is None:
-            return []
-    return laundry_service.get_bookings(house_id=house_id, user_id=user_id)
+    if person_id is not None and get_person(house_id, person_id) is None:
+        return []
+    return laundry_service.get_bookings(house_id=house_id, person_id=person_id)
 
 
 @router.post("")
@@ -40,8 +37,9 @@ def book_laundry_slot(
     """
     Book a laundry slot for the authenticated user.
     """
-    if not booking.username.strip():
-        raise HTTPException(status_code=400, detail="Username is required")
+    person = get_person(house_id, booking.person_id)
+    if person is None:
+        raise HTTPException(status_code=400, detail="Person does not belong to this house")
 
     start_dt = datetime.combine(booking.date, booking.start_time)
     end_dt = datetime.combine(booking.date, booking.end_time)
@@ -57,7 +55,7 @@ def book_laundry_slot(
         booking.start_time,
         booking.end_time,
         duration_minutes,
-        get_or_create_user_id(booking.username),
+        booking.person_id,
         house_id,
     )
     if not success:

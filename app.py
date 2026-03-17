@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from routers import laundry, dinner, guestroom
+from routers import food, guestroom, house, laundry, people
 from data.database import init_db
 
 
@@ -29,8 +29,10 @@ def health():
 
 # API routers
 app.include_router(laundry.router, prefix="/homes/default")
-app.include_router(dinner.router, prefix="/homes/default")
+app.include_router(food.router, prefix="/homes/default")
 app.include_router(guestroom.router, prefix="/homes/default")
+app.include_router(house.router, prefix="/homes/default")
+app.include_router(people.router, prefix="/homes/default")
 
 # Auth routers (temporarily disabled)
 

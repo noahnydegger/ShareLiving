@@ -9,16 +9,68 @@
 
 <nav>
     <a href="#" onclick="showSection('home')">Home</a>
-    <a href="#" onclick="showSection('laundry')">Laundry</a>
-    <a href="#" onclick="showSection('dinner')">Dinner</a>
-    <a href="#" onclick="showSection('guestroom')">Guestroom</a>
+    <a href="#" data-auth-only style="display:none" onclick="showSection('laundry')">Laundry</a>
+    <a href="#" data-auth-only style="display:none" onclick="showSection('food')">Food</a>
+    <a href="#" data-auth-only style="display:none" onclick="showSection('guestroom')">Guestroom</a>
     <a href="#" onclick="showSection('help')">Help</a>
-
     <span style="margin-left:auto"></span>
+    <button id="logout-button" data-auth-only style="display:none" onclick="logoutHouse()">Log out</button>
 </nav>
 
 <section id="home">
     <h1>ShareLiving</h1>
+    <p>Log in as a house, then choose the person you want to act as for shared services.</p>
+
+    <div id="auth-panels" class="panel-grid">
+        <div class="panel">
+            <h2>Create House</h2>
+            <input id="create-house-name" placeholder="House name">
+            <input id="create-house-password" type="password" placeholder="Password">
+            <button onclick="createHouse()">Create house</button>
+            <p id="create-house-status"></p>
+        </div>
+
+        <div class="panel">
+            <h2>Log In</h2>
+            <input id="login-house-name" placeholder="House name">
+            <input id="login-house-password" type="password" placeholder="Password">
+            <button onclick="loginHouse()">Log in</button>
+            <p id="login-house-status"></p>
+        </div>
+    </div>
+
+    <div id="house-dashboard" style="display:none">
+        <div class="panel">
+            <h2>Current House</h2>
+            <p id="active-house-label"></p>
+            <label for="current-person-select">Current person</label>
+            <select id="current-person-select" onchange="handleCurrentPersonChange()">
+                <option value="">Select a person</option>
+            </select>
+            <p id="current-person-status"></p>
+        </div>
+
+        <div class="panel-grid">
+            <div class="panel">
+                <h2>Living Groups</h2>
+                <input id="living-group-name" placeholder="Living group name">
+                <button onclick="createLivingGroup()">Add living group</button>
+                <p id="living-group-status"></p>
+                <ul id="living-groups-list"></ul>
+            </div>
+
+            <div class="panel">
+                <h2>People</h2>
+                <input id="person-name" placeholder="Person name">
+                <select id="person-living-group">
+                    <option value="">No living group</option>
+                </select>
+                <button onclick="createPerson()">Add person</button>
+                <p id="person-status"></p>
+                <ul id="people-list"></ul>
+            </div>
+        </div>
+    </div>
 </section>
 
 <section id="laundry" style="display:none">
@@ -29,7 +81,8 @@
     </div>
 
     <div id="laundry-add" style="display:none">
-        <input id="laundry-username" placeholder="Name">
+        <label for="laundry-person-select">Person</label>
+        <select id="laundry-person-select"></select>
         <input id="laundry-date" type="date">
         <input id="laundry-start" type="time">
         <input id="laundry-end" type="time">
@@ -41,7 +94,7 @@
         <table id="laundry-table">
             <thead>
                 <tr>
-                    <th>Name</th>
+                    <th>Person</th>
                     <th>Date</th>
                     <th>Start</th>
                     <th>End</th>
@@ -54,42 +107,74 @@
     </div>
 </section>
 
-<section id="dinner" style="display:none">
-    <h2>Dinner</h2>
+<section id="food" style="display:none">
+    <h2>Food</h2>
     <div class="dinner-actions">
-        <button onclick="showDinnerAdd()">Add attendance</button>
-        <button onclick="showDinnerSummary()">Show attendance</button>
+        <button onclick="showFoodAdd()">Add food entry</button>
+        <button onclick="showFoodSummary()">Show summary</button>
     </div>
 
-    <div id="dinner-add" style="display:none">
-        <input id="dinner-username" placeholder="Name">
-        <table id="dinner-form-table">
+    <div id="food-add" style="display:none">
+        <label for="food-person-select">Person</label>
+        <select id="food-person-select"></select>
+
+        <label for="food-date">Date</label>
+        <input id="food-date" type="date" onchange="handleFoodDateChange()">
+
+        <label for="food-meal-type">Meal</label>
+        <select id="food-meal-type" onchange="handleFoodMealChange()">
+            <option value="lunch">Lunch</option>
+            <option value="dinner">Dinner</option>
+            <option value="brunch">Brunch</option>
+        </select>
+
+        <label for="food-time">Eating time</label>
+        <input id="food-time" type="time">
+
+        <label for="food-cooking-group">Cooking group</label>
+        <select id="food-cooking-group"></select>
+
+        <label>
+            <input id="food-eats" type="checkbox">
+            Eats
+        </label>
+        <label>
+            <input id="food-cooks" type="checkbox">
+            Cooks
+        </label>
+        <label>
+            <input id="food-cook-helper" type="checkbox">
+            Cook helper
+        </label>
+
+        <label for="food-guests">Guests</label>
+        <input id="food-guests" type="number" min="0" step="1" value="0">
+
+        <label id="food-leftovers-row">
+            <input id="food-leftovers" type="checkbox">
+            Take leftovers next day
+        </label>
+
+        <label for="food-notes">Notes</label>
+        <textarea id="food-notes" rows="3" placeholder="comes later, vegan, etc."></textarea>
+
+        <button onclick="saveFoodEntry()">Save food entry</button>
+        <p id="food-add-status"></p>
+    </div>
+
+    <div id="food-summary" style="display:none">
+        <table id="food-summary-table">
             <thead>
                 <tr>
                     <th>Date</th>
-                    <th>Eats</th>
+                    <th>Meal</th>
                     <th>Cooks</th>
-                    <th>Guests</th>
+                    <th>Total eaters</th>
                 </tr>
             </thead>
             <tbody></tbody>
         </table>
-        <button onclick="submitDinnerAttendance()">Save attendance</button>
-        <p id="dinner-add-status"></p>
-    </div>
-
-    <div id="dinner-summary" style="display:none">
-        <table id="dinner-summary-table">
-            <thead>
-                <tr>
-                    <th>Date</th>
-                    <th>Cooks</th>
-                    <th>Total people</th>
-                </tr>
-            </thead>
-            <tbody></tbody>
-        </table>
-        <p id="dinner-summary-status"></p>
+        <p id="food-summary-status"></p>
     </div>
 </section>
 
@@ -101,7 +186,8 @@
     </div>
 
     <div id="guestroom-add" style="display:none">
-        <input id="guestroom-responsible" placeholder="Responsible name">
+        <label for="guestroom-person-select">Responsible person</label>
+        <select id="guestroom-person-select"></select>
         <input id="guestroom-guest" placeholder="Guest name">
         <input id="guestroom-start" type="datetime-local">
         <input id="guestroom-end" type="datetime-local">
@@ -128,7 +214,7 @@
 
 <section id="help" style="display:none">
     <h2>Help</h2>
-    <p>Minimal shared living app.</p>
+    <p>Use one shared house login. Then select a person and create shared entries for that house.</p>
 </section>
 
 <script src="main.js"></script>

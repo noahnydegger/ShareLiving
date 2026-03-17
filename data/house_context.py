@@ -1,14 +1,28 @@
-from data.database import get_default_house_id
+from typing import Optional
 
-_default_house_id = None
+from fastapi import Depends, Header, HTTPException
 
-
-async def get_current_house_id() -> int:
-    global _default_house_id
-    if _default_house_id is None:
-        _default_house_id = get_default_house_id()
-    return _default_house_id
+from services.house_service import parse_house_token
 
 
-async def get_current_house() -> dict:
-    return {"id": await get_current_house_id(), "slug": "default"}
+def _extract_token(authorization: Optional[str]) -> Optional[str]:
+    if not authorization:
+        return None
+    prefix = "Bearer "
+    if not authorization.startswith(prefix):
+        return None
+    return authorization[len(prefix):].strip()
+
+
+async def get_current_house(authorization: Optional[str] = Header(default=None)) -> dict:
+    token = _extract_token(authorization)
+    if token:
+        house = parse_house_token(token)
+        if house:
+            return house
+
+    raise HTTPException(status_code=401, detail="House login required")
+
+
+async def get_current_house_id(house: dict = Depends(get_current_house)) -> int:
+    return house["id"]

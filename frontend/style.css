@@ -1,15 +1,29 @@
 body {
     font-family: sans-serif;
-    max-width: 700px;
+    max-width: 900px;
     margin: auto;
+    padding: 1rem;
 }
 
 section {
     margin-bottom: 2rem;
 }
 
+nav {
+    display: flex;
+    gap: 0.75rem;
+    align-items: center;
+    margin-bottom: 1.5rem;
+}
+
 button {
     margin-top: 0.5rem;
+}
+
+input,
+select,
+button {
+    padding: 0.5rem;
 }
 
 pre {
@@ -27,6 +41,31 @@ th, td {
     border: 1px solid #ddd;
     padding: 0.5rem;
     text-align: left;
+}
+
+.panel-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 1rem;
+}
+
+.panel {
+    border: 1px solid #ddd;
+    padding: 1rem;
+    border-radius: 8px;
+    background: #fafafa;
+}
+
+.panel input,
+.panel select {
+    display: block;
+    width: 100%;
+    box-sizing: border-box;
+    margin-bottom: 0.75rem;
+}
+
+ul {
+    padding-left: 1.2rem;
 }
 
 .laundry-actions button {
