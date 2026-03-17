@@ -133,7 +133,7 @@ def init_db():
             default_house_id = cur.fetchone()["id"]
 
             # Living groups and people are house-managed and replace the
-            # old global username flow for laundry and dinner.
+            # old global username flow for shared services.
             cur.execute(
                 """
                 CREATE TABLE IF NOT EXISTS living_groups (
@@ -272,8 +272,7 @@ def init_db():
                 """
             )
 
-            # Food planning replaces dinner attendance with one row per
-            # person/date/meal inside a house.
+            # Food planning stores one row per person/date/meal inside a house.
             cur.execute(
                 """
                 CREATE TABLE IF NOT EXISTS food_entries (
@@ -376,37 +375,6 @@ def init_db():
             )
             cur.execute(
                 """
-                INSERT INTO food_entries (
-                    house_id,
-                    person_id,
-                    date,
-                    meal_type,
-                    eats,
-                    cooks,
-                    cook_helper,
-                    guests,
-                    take_leftovers_next_day,
-                    eating_time,
-                    notes
-                )
-                SELECT da.house_id,
-                       da.person_id,
-                       da.date,
-                       'dinner',
-                       da.eats = 1,
-                       da.cooks = 1,
-                       FALSE,
-                       COALESCE(da.friends, 0),
-                       FALSE,
-                       TIME '19:00',
-                       NULL
-                FROM dinner_attendance AS da
-                WHERE da.person_id IS NOT NULL
-                ON CONFLICT (house_id, person_id, date, meal_type) DO NOTHING
-                """
-            )
-            cur.execute(
-                """
                 CREATE INDEX IF NOT EXISTS laundry_bookings_house_id_idx
                 ON laundry_bookings (house_id)
                 """
@@ -437,110 +405,6 @@ def init_db():
                     END IF;
                 END
                 $$;
-                """
-            )
-
-            # Dinner attendance table
-            cur.execute(
-                """
-                CREATE TABLE IF NOT EXISTS dinner_attendance (
-                    date DATE NOT NULL,
-                    user_id INTEGER NOT NULL REFERENCES users(id),
-                    eats INTEGER DEFAULT 0,
-                    friends INTEGER DEFAULT 0,
-                    cooks INTEGER DEFAULT 0,
-                    house_id INTEGER NOT NULL REFERENCES houses(id),
-                    PRIMARY KEY(date, user_id, house_id)
-                )
-                """
-            )
-            cur.execute(
-                """
-                ALTER TABLE dinner_attendance
-                ADD COLUMN IF NOT EXISTS person_id INTEGER
-                """
-            )
-            cur.execute(
-                """
-                ALTER TABLE dinner_attendance
-                DROP CONSTRAINT IF EXISTS dinner_attendance_pkey
-                """
-            )
-            cur.execute(
-                """
-                ALTER TABLE dinner_attendance
-                ALTER COLUMN user_id DROP NOT NULL
-                """
-            )
-            cur.execute(
-                """
-                ALTER TABLE dinner_attendance
-                ADD COLUMN IF NOT EXISTS house_id INTEGER
-                """
-            )
-            cur.execute(
-                """
-                UPDATE dinner_attendance
-                SET house_id = %s
-                WHERE house_id IS NULL
-                """,
-                (default_house_id,),
-            )
-            cur.execute(
-                """
-                ALTER TABLE dinner_attendance
-                ALTER COLUMN house_id SET NOT NULL
-                """
-            )
-            cur.execute(
-                """
-                DO $$
-                BEGIN
-                    IF NOT EXISTS (
-                        SELECT 1 FROM pg_constraint
-                        WHERE conname = 'dinner_attendance_house_id_fkey'
-                    ) THEN
-                        ALTER TABLE dinner_attendance
-                        ADD CONSTRAINT dinner_attendance_house_id_fkey
-                        FOREIGN KEY (house_id) REFERENCES houses(id);
-                    END IF;
-                END
-                $$;
-                """
-            )
-            cur.execute(
-                """
-                DO $$
-                BEGIN
-                    IF NOT EXISTS (
-                        SELECT 1 FROM pg_constraint
-                        WHERE conname = 'dinner_attendance_person_id_fkey'
-                    ) THEN
-                        ALTER TABLE dinner_attendance
-                        ADD CONSTRAINT dinner_attendance_person_id_fkey
-                        FOREIGN KEY (person_id) REFERENCES people(id);
-                    END IF;
-                END
-                $$;
-                """
-            )
-            cur.execute(
-                """
-                CREATE INDEX IF NOT EXISTS dinner_attendance_house_id_idx
-                ON dinner_attendance (house_id)
-                """
-            )
-            cur.execute(
-                """
-                CREATE INDEX IF NOT EXISTS dinner_attendance_person_id_idx
-                ON dinner_attendance (person_id)
-                """
-            )
-            cur.execute(
-                """
-                CREATE UNIQUE INDEX IF NOT EXISTS dinner_attendance_house_date_person_idx
-                ON dinner_attendance (house_id, date, person_id)
-                WHERE person_id IS NOT NULL
                 """
             )
 
@@ -608,10 +472,6 @@ def init_db():
                     SELECT lb.house_id, u.username
                     FROM laundry_bookings lb
                     JOIN users u ON lb.user_id = u.id
-                    UNION
-                    SELECT da.house_id, u.username
-                    FROM dinner_attendance da
-                    JOIN users u ON da.user_id = u.id
                 ) AS source
                 WHERE source.username IS NOT NULL
                 ON CONFLICT DO NOTHING
@@ -626,38 +486,5 @@ def init_db():
                   AND p.house_id = lb.house_id
                   AND LOWER(p.name) = LOWER(u.username)
                   AND lb.person_id IS NULL
-                """
-            )
-            cur.execute(
-                """
-                UPDATE dinner_attendance AS da
-                SET person_id = p.id
-                FROM users AS u, people AS p
-                WHERE da.user_id = u.id
-                  AND p.house_id = da.house_id
-                  AND LOWER(p.name) = LOWER(u.username)
-                  AND da.person_id IS NULL
-                """
-            )
-            cur.execute(
-                """
-                ALTER TABLE dinner_attendance
-                ALTER COLUMN person_id SET NOT NULL
-                """
-            )
-            cur.execute(
-                """
-                DO $$
-                BEGIN
-                    IF NOT EXISTS (
-                        SELECT 1 FROM pg_constraint
-                        WHERE conname = 'dinner_attendance_pkey'
-                    ) THEN
-                        ALTER TABLE dinner_attendance
-                        ADD CONSTRAINT dinner_attendance_pkey
-                        PRIMARY KEY (date, person_id, house_id);
-                    END IF;
-                END
-                $$;
                 """
             )
