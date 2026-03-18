@@ -901,11 +901,13 @@ function updateBrunchAvailability() {
     const dateInput = getElement("food-date");
     const mealSelect = getElement("food-meal-type");
 
+    // Ensure elements exist before accessing properties
     if (!dateInput || !mealSelect) {
         return;
     }
 
-    const brunchOption = getOptionalChild(mealSelect, 'option[value="brunch"]');
+    const brunchOption = mealSelect.querySelector('option[value="brunch"]');
+
     if (!brunchOption) {
         return;
     }
