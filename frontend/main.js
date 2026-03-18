@@ -5,6 +5,11 @@ const HOUSE_ID_KEY = "shareLiving.houseId";
 
 let currentPeople = [];
 let currentLivingGroups = [];
+let currentFoodAddWeekStart = getMonday(new Date());
+let currentFoodSummaryWeekStart = getMonday(new Date());
+let currentOverviewView = "week";
+let currentOverviewDate = getMonday(new Date());
+let currentOverviewEvents = [];
 
 function showSection(id) {
     document.querySelectorAll("section").forEach((section) => {
@@ -13,6 +18,10 @@ function showSection(id) {
     const element = document.getElementById(id);
     if (element) {
         element.style.display = "block";
+    }
+
+    if (id === "overview" && getHouseToken()) {
+        loadOverviewData();
     }
 }
 
@@ -81,7 +90,7 @@ function setAuthVisibility(isLoggedIn) {
     document.getElementById("house-dashboard").style.display = isLoggedIn ? "block" : "none";
 }
 
-function fillPersonSelect(selectId, includeEmpty = false, emptyLabel = "Select a person") {
+function fillPersonSelect(selectId, includeEmpty = false, emptyLabel = "Person auswählen") {
     const select = document.getElementById(selectId);
     if (!select) {
         return;
@@ -120,19 +129,14 @@ function syncPersonSelectors() {
     fillPersonSelect("guestroom-person-select");
 }
 
-function fillCookingGroupSelect() {
-    const select = document.getElementById("food-cooking-group");
-    if (!select) {
-        return;
-    }
-
-    select.innerHTML = '<option value="">Whole house</option>';
+function createCookingGroupOptions(selectedValue = "") {
+    const selected = String(selectedValue || "");
+    let options = '<option value="">Ganzes Haus</option>';
     currentLivingGroups.forEach((group) => {
-        const option = document.createElement("option");
-        option.value = String(group.id);
-        option.textContent = group.name;
-        select.appendChild(option);
+        const isSelected = String(group.id) === selected ? " selected" : "";
+        options += `<option value="${group.id}"${isSelected}>${group.name}</option>`;
     });
+    return options;
 }
 
 function renderLivingGroups() {
@@ -140,7 +144,7 @@ function renderLivingGroups() {
     list.innerHTML = "";
 
     if (!currentLivingGroups.length) {
-        list.innerHTML = "<li>No living groups yet.</li>";
+        list.innerHTML = "<li>Noch keine Wohngruppen.</li>";
         return;
     }
 
@@ -151,7 +155,7 @@ function renderLivingGroups() {
     });
 
     const select = document.getElementById("person-living-group");
-    select.innerHTML = '<option value="">No living group</option>';
+    select.innerHTML = '<option value="">Keine Wohngruppe</option>';
     currentLivingGroups.forEach((group) => {
         const option = document.createElement("option");
         option.value = String(group.id);
@@ -165,8 +169,8 @@ function renderPeople() {
     list.innerHTML = "";
 
     if (!currentPeople.length) {
-        list.innerHTML = "<li>No people yet.</li>";
-        document.getElementById("current-person-status").innerText = "Add a person to use laundry and food.";
+        list.innerHTML = "<li>Noch keine Personen.</li>";
+        document.getElementById("current-person-status").innerText = "Füge zuerst eine Person hinzu, um Wäsche und Essen zu nutzen.";
         return;
     }
 
@@ -180,7 +184,7 @@ function renderPeople() {
 
     document.getElementById("current-person-status").innerText = getSelectedPersonId()
         ? ""
-        : "Select a current person for quicker service entries.";
+        : "Wähle eine aktuelle Person für schnellere Einträge.";
 }
 
 async function loadHouseData() {
@@ -199,7 +203,6 @@ async function loadHouseData() {
     renderLivingGroups();
     renderPeople();
     syncPersonSelectors();
-    fillCookingGroupSelect();
 
     const selectedPersonId = getSelectedPersonId();
     if (selectedPersonId && !currentPeople.some((person) => String(person.id) === String(selectedPersonId))) {
@@ -213,7 +216,7 @@ async function loadHouseData() {
 function applyLoggedInState() {
     const houseName = localStorage.getItem(HOUSE_NAME_KEY) || "";
     setAuthVisibility(true);
-    document.getElementById("active-house-label").innerText = `Logged in as: ${houseName}`;
+    document.getElementById("active-house-label").innerText = `Angemeldet als: ${houseName}`;
 }
 
 async function handleSuccessfulAuth(auth) {
@@ -223,6 +226,7 @@ async function handleSuccessfulAuth(auth) {
     if (!loaded) {
         return;
     }
+    await renderActiveFoodViews();
     showSection("home");
 }
 
@@ -233,7 +237,7 @@ async function createHouse() {
     status.innerText = "";
 
     if (!houseName || !password) {
-        status.innerText = "Enter a house name and password.";
+        status.innerText = "Bitte Hausname und Passwort eingeben.";
         return;
     }
 
@@ -245,12 +249,12 @@ async function createHouse() {
 
     if (!response.ok) {
         const error = await response.text();
-        status.innerText = `Failed to create house: ${error}`;
+        status.innerText = `Haus konnte nicht erstellt werden: ${error}`;
         return;
     }
 
     await handleSuccessfulAuth(await response.json());
-    status.innerText = "House created.";
+    status.innerText = "Haus erstellt.";
 }
 
 async function loginHouse() {
@@ -260,7 +264,7 @@ async function loginHouse() {
     status.innerText = "";
 
     if (!houseName || !password) {
-        status.innerText = "Enter a house name and password.";
+        status.innerText = "Bitte Hausname und Passwort eingeben.";
         return;
     }
 
@@ -272,7 +276,7 @@ async function loginHouse() {
 
     if (!response.ok) {
         const error = await response.text();
-        status.innerText = `Login failed: ${error}`;
+        status.innerText = `Anmeldung fehlgeschlagen: ${error}`;
         return;
     }
 
@@ -288,7 +292,6 @@ function logoutHouse() {
     renderLivingGroups();
     renderPeople();
     syncPersonSelectors();
-    fillCookingGroupSelect();
     showSection("home");
 }
 
@@ -297,6 +300,7 @@ function handleCurrentPersonChange() {
     setSelectedPersonId(select.value);
     syncPersonSelectors();
     renderPeople();
+    renderActiveFoodViews();
 }
 
 async function createLivingGroup() {
@@ -312,13 +316,14 @@ async function createLivingGroup() {
 
     if (!response.ok) {
         const error = await response.text();
-        status.innerText = `Failed to add living group: ${error}`;
+        status.innerText = `Wohngruppe konnte nicht hinzugefügt werden: ${error}`;
         return;
     }
 
     input.value = "";
-    status.innerText = "Living group added.";
+    status.innerText = "Wohngruppe hinzugefügt.";
     await loadHouseData();
+    await renderActiveFoodViews();
 }
 
 async function createPerson() {
@@ -340,34 +345,369 @@ async function createPerson() {
 
     if (!response.ok) {
         const error = await response.text();
-        status.innerText = `Failed to add person: ${error}`;
+        status.innerText = `Person konnte nicht hinzugefügt werden: ${error}`;
         return;
     }
 
     nameInput.value = "";
     groupSelect.value = "";
-    status.innerText = "Person added.";
+    status.innerText = "Person hinzugefügt.";
     await loadHouseData();
+    await renderActiveFoodViews();
 }
 
 function pad2(value) {
     return String(value).padStart(2, "0");
 }
 
+function cloneDate(date) {
+    return new Date(date.getTime());
+}
+
 function formatDate(date) {
     return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
 }
 
-function getWeekDates() {
+function isToday(dateValue) {
+    return dateValue === formatDate(new Date());
+}
+
+function formatDateTimeLocal(date) {
+    return `${formatDate(date)}T${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
+}
+
+function getMonday(date) {
+    const monday = cloneDate(date);
+    monday.setHours(0, 0, 0, 0);
+    const day = monday.getDay();
+    const diff = day === 0 ? -6 : 1 - day;
+    monday.setDate(monday.getDate() + diff);
+    return monday;
+}
+
+function addDays(date, days) {
+    const copy = cloneDate(date);
+    copy.setDate(copy.getDate() + days);
+    return copy;
+}
+
+function formatWeekLabel(weekStart) {
+    const weekEnd = addDays(weekStart, 6);
+    return `${formatDate(weekStart)} bis ${formatDate(weekEnd)}`;
+}
+
+function getWeekDates(weekStart = getMonday(new Date())) {
     const dates = [];
-    const base = new Date();
-    base.setHours(0, 0, 0, 0);
     for (let i = 0; i < 7; i += 1) {
-        const date = new Date(base);
-        date.setDate(base.getDate() + i);
-        dates.push(formatDate(date));
+        dates.push(formatDate(addDays(weekStart, i)));
     }
     return dates;
+}
+
+function getIsoWeekNumber(date) {
+    const target = cloneDate(date);
+    target.setHours(0, 0, 0, 0);
+    target.setDate(target.getDate() + 3 - ((target.getDay() + 6) % 7));
+    const week1 = new Date(target.getFullYear(), 0, 4);
+    return 1 + Math.round(
+        ((target.getTime() - week1.getTime()) / 86400000 - 3 + ((week1.getDay() + 6) % 7)) / 7
+    );
+}
+
+function getMonthStart(date) {
+    return new Date(date.getFullYear(), date.getMonth(), 1);
+}
+
+function getMonthEnd(date) {
+    return new Date(date.getFullYear(), date.getMonth() + 1, 0);
+}
+
+function getMonthGridStart(date) {
+    return getMonday(getMonthStart(date));
+}
+
+function getMonthGridEnd(date) {
+    const monthEnd = getMonthEnd(date);
+    const day = monthEnd.getDay();
+    const diff = day === 0 ? 0 : 7 - day;
+    return addDays(monthEnd, diff);
+}
+
+function getDateRangeForOverview() {
+    if (currentOverviewView === "week") {
+        const start = getMonday(currentOverviewDate);
+        const end = addDays(start, 6);
+        return { start, end };
+    }
+
+    return {
+        start: getMonthGridStart(currentOverviewDate),
+        end: getMonthGridEnd(currentOverviewDate),
+    };
+}
+
+function getOverviewRangeLabel() {
+    if (currentOverviewView === "week") {
+        const weekStart = getMonday(currentOverviewDate);
+        return `KW ${getIsoWeekNumber(weekStart)} · ${formatWeekLabel(weekStart)}`;
+    }
+
+    return currentOverviewDate.toLocaleDateString("de-CH", {
+        month: "long",
+        year: "numeric",
+    });
+}
+
+function getOverviewFilterState() {
+    return {
+        food: document.getElementById("overview-filter-food").checked,
+        laundry: document.getElementById("overview-filter-laundry").checked,
+        guestroom: document.getElementById("overview-filter-guestroom").checked,
+    };
+}
+
+function getOverviewEventsForDate(dateValue) {
+    const filters = getOverviewFilterState();
+    return currentOverviewEvents.filter((event) => {
+        if (event.date !== dateValue) {
+            return false;
+        }
+        if (event.type === "food" && !filters.food) {
+            return false;
+        }
+        if (event.type === "laundry" && !filters.laundry) {
+            return false;
+        }
+        if (event.type === "guestroom" && !filters.guestroom) {
+            return false;
+        }
+        return true;
+    });
+}
+
+function buildFoodEvents(foodEntries) {
+    const groupedEntries = new Map();
+
+    foodEntries.forEach((entry) => {
+        const key = `${entry.date}|${entry.meal_type}|${entry.cooking_group_name || "house"}`;
+        if (!groupedEntries.has(key)) {
+            groupedEntries.set(key, {
+                type: "food",
+                date: entry.date,
+                mealType: entry.meal_type,
+                cookingGroupName: entry.cooking_group_name || "Ganzes Haus",
+                cooks: [],
+                totalPeople: 0,
+            });
+        }
+
+        const item = groupedEntries.get(key);
+        if (entry.cooks) {
+            item.cooks.push(entry.person_name);
+        }
+        if (entry.eats) {
+            item.totalPeople += 1 + Number(entry.guests || 0);
+        }
+    });
+
+    return Array.from(groupedEntries.values()).map((entry) => ({
+        type: "food",
+        date: entry.date,
+        title: `${formatMealLabel(entry.mealType)} · ${entry.cookingGroupName}`,
+        subtitle: `${entry.cooks.length ? entry.cooks.join(", ") : "Kein Koch"} · ${entry.totalPeople} Personen`,
+    }));
+}
+
+function buildLaundryEvents(laundryEntries) {
+    return laundryEntries.map((entry) => ({
+        type: "laundry",
+        date: entry.date,
+        title: `${entry.start_time.slice(0, 5)}–${entry.end_time.slice(0, 5)}`,
+        subtitle: entry.person_name,
+    }));
+}
+
+function getDurationDays(startValue, endValue) {
+    const startAt = new Date(startValue);
+    const endAt = new Date(endValue);
+    const startDay = new Date(startAt.getFullYear(), startAt.getMonth(), startAt.getDate());
+    const endDay = new Date(endAt.getFullYear(), endAt.getMonth(), endAt.getDate());
+    const diffDays = Math.round((endDay.getTime() - startDay.getTime()) / 86400000) + 1;
+    return Math.max(diffDays, 1);
+}
+
+function buildGuestroomEvents(guestroomEntries, startDate, endDate) {
+    const events = [];
+    const rangeStart = new Date(`${startDate}T00:00:00`);
+    const rangeEnd = new Date(`${endDate}T23:59:59`);
+
+    guestroomEntries.forEach((entry) => {
+        const startAt = new Date(entry.start_at);
+        const endAt = new Date(entry.end_at);
+        if (endAt < rangeStart || startAt > rangeEnd) {
+            return;
+        }
+
+        let cursor = new Date(startAt);
+        cursor.setHours(0, 0, 0, 0);
+        const lastDay = new Date(endAt);
+        lastDay.setHours(0, 0, 0, 0);
+
+        while (cursor <= lastDay) {
+            events.push({
+                type: "guestroom",
+                date: formatDate(cursor),
+                title: entry.guest_name,
+                subtitle: "",
+            });
+            cursor = addDays(cursor, 1);
+        }
+    });
+
+    return events;
+}
+
+function formatDateTime(value) {
+    if (!value) {
+        return "";
+    }
+    return value.replace("T", " ").replace(":00", "");
+}
+
+function createOverviewEventHtml(event) {
+    return `
+        <div class="calendar-event calendar-event--${event.type}">
+            <strong>${event.title}</strong>
+            <span>${event.subtitle}</span>
+        </div>
+    `;
+}
+
+function renderOverviewWeek() {
+    const calendar = document.getElementById("overview-calendar");
+    const weekStart = getMonday(currentOverviewDate);
+    const weekDates = getWeekDates(weekStart);
+
+    calendar.className = "overview-calendar overview-calendar--week";
+    calendar.innerHTML = weekDates.map((dateValue) => {
+        const date = new Date(`${dateValue}T00:00:00`);
+        const dayLabel = date.toLocaleDateString("de-CH", { weekday: "long" });
+        const events = getOverviewEventsForDate(dateValue);
+
+        return `
+            <div class="calendar-day-card${isToday(dateValue) ? " calendar-day-card--today" : ""}">
+                <div class="calendar-day-header">
+                    <strong>${dayLabel}</strong>
+                    <span>${dateValue}</span>
+                </div>
+                <div class="calendar-day-events">
+                    ${events.length ? events.map(createOverviewEventHtml).join("") : '<p class="calendar-empty">Keine Einträge</p>'}
+                </div>
+            </div>
+        `;
+    }).join("");
+}
+
+function renderOverviewMonth() {
+    const calendar = document.getElementById("overview-calendar");
+    const range = getDateRangeForOverview();
+    const days = [];
+    const weekdayLabels = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
+    let cursor = new Date(range.start);
+
+    while (cursor <= range.end) {
+        days.push(formatDate(cursor));
+        cursor = addDays(cursor, 1);
+    }
+
+    calendar.className = "overview-calendar overview-calendar--month";
+    calendar.innerHTML = `
+        ${weekdayLabels.map((label) => `<div class="calendar-weekday">${label}</div>`).join("")}
+        ${days.map((dateValue) => {
+        const date = new Date(`${dateValue}T00:00:00`);
+        const isCurrentMonth = date.getMonth() === currentOverviewDate.getMonth();
+        const events = getOverviewEventsForDate(dateValue);
+
+        return `
+            <div class="calendar-month-cell${isCurrentMonth ? "" : " calendar-month-cell--muted"}${isToday(dateValue) ? " calendar-month-cell--today" : ""}">
+                <div class="calendar-month-date">${date.getDate()}</div>
+                <div class="calendar-day-events">
+                    ${events.length ? events.map(createOverviewEventHtml).join("") : '<p class="calendar-empty">Keine Einträge</p>'}
+                </div>
+            </div>
+        `;
+    }).join("")}
+    `;
+}
+
+function renderOverviewCalendar() {
+    document.getElementById("overview-range-label").innerText = getOverviewRangeLabel();
+    document.getElementById("overview-week-button").classList.toggle("is-active", currentOverviewView === "week");
+    document.getElementById("overview-month-button").classList.toggle("is-active", currentOverviewView === "month");
+
+    if (currentOverviewView === "week") {
+        renderOverviewWeek();
+    } else {
+        renderOverviewMonth();
+    }
+}
+
+async function loadOverviewData() {
+    const status = document.getElementById("overview-status");
+    const range = getDateRangeForOverview();
+    const startDate = formatDate(range.start);
+    const endDate = formatDate(range.end);
+    status.innerText = "";
+
+    const [foodResponse, laundryResponse, guestroomResponse] = await Promise.all([
+        apiFetch(`/api/food?start_date=${startDate}&end_date=${endDate}`),
+        apiFetch("/api/laundry"),
+        apiFetch("/api/guestroom"),
+    ]);
+
+    if (!foodResponse.ok || !laundryResponse.ok || !guestroomResponse.ok) {
+        status.innerText = "Übersicht konnte nicht geladen werden.";
+        return;
+    }
+
+    const foodEntries = await foodResponse.json();
+    const laundryEntries = await laundryResponse.json();
+    const guestroomEntries = await guestroomResponse.json();
+
+    currentOverviewEvents = [
+        ...buildFoodEvents(foodEntries),
+        ...buildLaundryEvents(
+            laundryEntries.filter((entry) => entry.date >= startDate && entry.date <= endDate)
+        ),
+        ...buildGuestroomEvents(guestroomEntries, startDate, endDate),
+    ];
+
+    renderOverviewCalendar();
+}
+
+function setOverviewView(view) {
+    currentOverviewView = view;
+    loadOverviewData();
+}
+
+function changeOverviewRange(offset) {
+    if (currentOverviewView === "week") {
+        currentOverviewDate = addDays(currentOverviewDate, offset * 7);
+    } else {
+        currentOverviewDate = new Date(
+            currentOverviewDate.getFullYear(),
+            currentOverviewDate.getMonth() + offset,
+            1,
+        );
+    }
+    loadOverviewData();
+}
+
+function goToTodayOverview() {
+    currentOverviewDate = currentOverviewView === "week"
+        ? getMonday(new Date())
+        : new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+    loadOverviewData();
 }
 
 function showLaundryAdd() {
@@ -400,7 +740,7 @@ async function addLaundryBooking() {
     status.innerText = "";
 
     if (!personId || !date || !start || !end) {
-        status.innerText = "Please choose a person, date, start, and end time.";
+        status.innerText = "Bitte Person, Datum, Start- und Endzeit auswählen.";
         return;
     }
 
@@ -417,11 +757,11 @@ async function addLaundryBooking() {
 
     if (!response.ok) {
         const error = await response.text();
-        status.innerText = `Failed to save booking: ${error}`;
+        status.innerText = `Buchung konnte nicht gespeichert werden: ${error}`;
         return;
     }
 
-    status.innerText = "Booking saved.";
+    status.innerText = "Buchung gespeichert.";
     showLaundryList();
 }
 
@@ -433,13 +773,13 @@ async function loadLaundry() {
 
     const response = await apiFetch("/api/laundry");
     if (!response.ok) {
-        status.innerText = "Failed to load laundry bookings.";
+        status.innerText = "Wäschebuchungen konnten nicht geladen werden.";
         return;
     }
 
     const data = await response.json();
     if (!data.length) {
-        status.innerText = "No bookings yet.";
+        status.innerText = "Noch keine Buchungen.";
         return;
     }
 
@@ -448,8 +788,8 @@ async function loadLaundry() {
         row.innerHTML = `
             <td>${booking.person_name}</td>
             <td>${booking.date}</td>
-            <td>${booking.start_time}</td>
-            <td>${booking.end_time}</td>
+            <td>${booking.start_time.slice(0, 5)}</td>
+            <td>${booking.end_time.slice(0, 5)}</td>
             <td>${formatDuration(booking.duration_minutes)}</td>
         `;
         tableBody.appendChild(row);
@@ -466,62 +806,222 @@ function getDefaultMealTime(mealType) {
     return "19:00";
 }
 
-function isSunday(dateValue) {
-    if (!dateValue) {
-        return false;
+function getMealRowsForWeek(weekStart) {
+    const rows = [];
+    const weekDates = getWeekDates(weekStart);
+    weekDates.forEach((dateValue, index) => {
+        rows.push({ date: dateValue, mealType: "lunch" });
+        rows.push({ date: dateValue, mealType: "dinner" });
+        if (index === 6) {
+            rows.push({ date: dateValue, mealType: "brunch" });
+        }
+    });
+    return rows;
+}
+
+function getFoodEntriesMap(entries, personId) {
+    const entryMap = new Map();
+    entries
+        .filter((entry) => String(entry.person_id) === String(personId))
+        .forEach((entry) => {
+            entryMap.set(`${entry.date}|${entry.meal_type}`, entry);
+        });
+    return entryMap;
+}
+
+function formatMealLabel(mealType) {
+    if (mealType === "lunch") {
+        return "Mittagessen";
     }
-    return new Date(`${dateValue}T00:00:00`).getDay() === 0;
-}
-
-function setFoodFormDefaults() {
-    const mealType = document.getElementById("food-meal-type").value;
-    document.getElementById("food-time").value = getDefaultMealTime(mealType);
-    document.getElementById("food-leftovers-row").style.display = mealType === "lunch" ? "block" : "none";
-    if (mealType !== "lunch") {
-        document.getElementById("food-leftovers").checked = false;
+    if (mealType === "brunch") {
+        return "Brunch";
     }
+    return "Abendessen";
 }
 
-function updateBrunchAvailability() {
-    const dateValue = document.getElementById("food-date").value;
-    const mealSelect = document.getElementById("food-meal-type");
-    const brunchOption = mealSelect.querySelector('option[value="brunch"]');
-    const brunchAllowed = isSunday(dateValue);
-    brunchOption.disabled = !brunchAllowed;
+function renderFoodWeekTable(entries) {
+    const personId = document.getElementById("food-person-select").value || getSelectedPersonId();
+    const tbody = document.querySelector("#food-add-table tbody");
+    const status = document.getElementById("food-add-status");
+    const weekRows = getMealRowsForWeek(currentFoodAddWeekStart);
+    const entryMap = getFoodEntriesMap(entries, personId);
 
-    if (!brunchAllowed && mealSelect.value === "brunch") {
-        mealSelect.value = "lunch";
+    document.getElementById("food-add-week-label").innerText = formatWeekLabel(currentFoodAddWeekStart);
+    tbody.innerHTML = "";
+    status.innerText = currentPeople.length ? "" : "Füge zuerst eine Person hinzu, bevor du Essen planst.";
+
+    weekRows.forEach((rowData) => {
+        const entry = entryMap.get(`${rowData.date}|${rowData.mealType}`);
+        const row = document.createElement("tr");
+        row.dataset.date = rowData.date;
+        row.dataset.mealType = rowData.mealType;
+        row.innerHTML = `
+            <td>${rowData.date}</td>
+            <td>${formatMealLabel(rowData.mealType)}</td>
+            <td><input class="food-eats" type="checkbox" ${entry?.eats ? "checked" : ""}></td>
+            <td><input class="food-cooks" type="checkbox" ${entry?.cooks ? "checked" : ""}></td>
+            <td><input class="food-cook-helper" type="checkbox" ${entry?.cook_helper ? "checked" : ""}></td>
+            <td><input class="food-guests" type="number" min="0" step="1" value="${entry?.guests ?? 0}"></td>
+            <td><input class="food-leftovers" type="checkbox" ${entry?.take_leftovers_next_day ? "checked" : ""} ${rowData.mealType !== "lunch" ? "disabled" : ""}></td>
+            <td><input class="food-time" type="time" value="${entry?.eating_time ?? getDefaultMealTime(rowData.mealType)}"></td>
+            <td><select class="food-cooking-group">${createCookingGroupOptions(entry?.cooking_group_id)}</select></td>
+            <td><input class="food-notes" type="text" value="${entry?.notes ?? ""}" placeholder="kommt später, vegan"></td>
+        `;
+        tbody.appendChild(row);
+    });
+}
+
+async function loadFoodWeekForAdd() {
+    const weekDates = getWeekDates(currentFoodAddWeekStart);
+    const response = await apiFetch(`/api/food?start_date=${weekDates[0]}&end_date=${weekDates[weekDates.length - 1]}`);
+    if (!response.ok) {
+        document.getElementById("food-add-status").innerText = "Essenswoche konnte nicht geladen werden.";
+        return;
     }
+    renderFoodWeekTable(await response.json());
 }
 
-function handleFoodDateChange() {
-    updateBrunchAvailability();
-    setFoodFormDefaults();
+function changeFoodAddWeek(offset) {
+    currentFoodAddWeekStart = addDays(currentFoodAddWeekStart, offset * 7);
+    loadFoodWeekForAdd();
 }
 
-function handleFoodMealChange() {
-    setFoodFormDefaults();
+function goToTodayFoodAdd() {
+    currentFoodAddWeekStart = getMonday(new Date());
+    loadFoodWeekForAdd();
 }
 
-function initializeFoodForm() {
-    document.getElementById("food-date").value = formatDate(new Date());
-    document.getElementById("food-meal-type").value = "dinner";
-    document.getElementById("food-eats").checked = false;
-    document.getElementById("food-cooks").checked = false;
-    document.getElementById("food-cook-helper").checked = false;
-    document.getElementById("food-guests").value = "0";
-    document.getElementById("food-leftovers").checked = false;
-    document.getElementById("food-cooking-group").value = "";
-    document.getElementById("food-notes").value = "";
-    handleFoodDateChange();
+async function saveFoodWeek() {
+    const personId = document.getElementById("food-person-select").value || getSelectedPersonId();
+    const status = document.getElementById("food-add-status");
+    status.innerText = "";
+
+    if (!personId) {
+        status.innerText = "Bitte eine Person auswählen.";
+        return;
+    }
+
+    const rows = Array.from(document.querySelectorAll("#food-add-table tbody tr"));
+    for (const row of rows) {
+        const payload = {
+            person_id: Number(personId),
+            date: row.dataset.date,
+            meal_type: row.dataset.mealType,
+            eats: row.querySelector(".food-eats").checked,
+            cooks: row.querySelector(".food-cooks").checked,
+            cook_helper: row.querySelector(".food-cook-helper").checked,
+            guests: Number(row.querySelector(".food-guests").value || "0"),
+            take_leftovers_next_day: row.querySelector(".food-leftovers").checked,
+            eating_time: row.querySelector(".food-time").value || getDefaultMealTime(row.dataset.mealType),
+            cooking_group_id: row.querySelector(".food-cooking-group").value
+                ? Number(row.querySelector(".food-cooking-group").value)
+                : null,
+            notes: row.querySelector(".food-notes").value.trim(),
+        };
+
+        const response = await apiFetch("/api/food", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+        });
+
+        if (!response.ok) {
+            const error = await response.text();
+            status.innerText = `Woche konnte nicht gespeichert werden: ${error}`;
+            return;
+        }
+    }
+
+    status.innerText = "Woche gespeichert.";
+    await loadFoodWeekForAdd();
 }
 
 function showFoodAdd() {
     document.getElementById("food-add").style.display = "block";
     document.getElementById("food-summary").style.display = "none";
     syncPersonSelectors();
-    fillCookingGroupSelect();
-    handleFoodDateChange();
+    if (getHouseToken()) {
+        loadFoodWeekForAdd();
+    }
+}
+
+function buildSummaryRows(entries) {
+    const tbody = document.querySelector("#food-summary-table tbody");
+    const status = document.getElementById("food-summary-status");
+    tbody.innerHTML = "";
+    document.getElementById("food-summary-week-label").innerText = formatWeekLabel(currentFoodSummaryWeekStart);
+    status.innerText = "";
+
+    const entriesByMeal = new Map();
+    entries.forEach((entry) => {
+        const key = `${entry.date}|${entry.meal_type}`;
+        if (!entriesByMeal.has(key)) {
+            entriesByMeal.set(key, []);
+        }
+        entriesByMeal.get(key).push(entry);
+    });
+
+    getMealRowsForWeek(currentFoodSummaryWeekStart).forEach((mealRow) => {
+        const key = `${mealRow.date}|${mealRow.mealType}`;
+        const mealEntries = entriesByMeal.get(key) || [];
+
+        if (!mealEntries.length) {
+            const emptyRow = document.createElement("tr");
+            emptyRow.innerHTML = `
+                <td>${mealRow.date}</td>
+                <td>${formatMealLabel(mealRow.mealType)}</td>
+                <td>—</td>
+                <td>—</td>
+                <td>Nein</td>
+                <td>Nein</td>
+                <td>Nein</td>
+                <td>0</td>
+                <td>Nein</td>
+                <td>${getDefaultMealTime(mealRow.mealType)}</td>
+                <td>—</td>
+            `;
+            tbody.appendChild(emptyRow);
+            return;
+        }
+
+        mealEntries.forEach((entry) => {
+            const row = document.createElement("tr");
+            row.innerHTML = `
+                <td>${entry.date}</td>
+                <td>${formatMealLabel(entry.meal_type)}</td>
+                <td>${entry.person_name}</td>
+                <td>${entry.cooking_group_name || "Ganzes Haus"}</td>
+                <td>${entry.eats ? "Ja" : "Nein"}</td>
+                <td>${entry.cooks ? "Ja" : "Nein"}</td>
+                <td>${entry.cook_helper ? "Ja" : "Nein"}</td>
+                <td>${entry.guests}</td>
+                <td>${entry.take_leftovers_next_day ? "Ja" : "Nein"}</td>
+                <td>${entry.eating_time}</td>
+                <td>${entry.notes || "—"}</td>
+            `;
+            tbody.appendChild(row);
+        });
+    });
+}
+
+async function loadFoodSummary() {
+    const weekDates = getWeekDates(currentFoodSummaryWeekStart);
+    const response = await apiFetch(`/api/food?start_date=${weekDates[0]}&end_date=${weekDates[weekDates.length - 1]}`);
+    if (!response.ok) {
+        document.getElementById("food-summary-status").innerText = "Essensübersicht konnte nicht geladen werden.";
+        return;
+    }
+    buildSummaryRows(await response.json());
+}
+
+function changeFoodSummaryWeek(offset) {
+    currentFoodSummaryWeekStart = addDays(currentFoodSummaryWeekStart, offset * 7);
+    loadFoodSummary();
+}
+
+function goToTodayFoodSummary() {
+    currentFoodSummaryWeekStart = getMonday(new Date());
+    loadFoodSummary();
 }
 
 function showFoodSummary() {
@@ -530,82 +1030,13 @@ function showFoodSummary() {
     loadFoodSummary();
 }
 
-async function saveFoodEntry() {
-    const personId = document.getElementById("food-person-select").value;
-    const date = document.getElementById("food-date").value;
-    const mealType = document.getElementById("food-meal-type").value;
-    const status = document.getElementById("food-add-status");
-    status.innerText = "";
-
-    if (!personId || !date || !mealType) {
-        status.innerText = "Please choose a person, date, and meal.";
-        return;
+async function renderActiveFoodViews() {
+    if (document.getElementById("food-add").style.display !== "none") {
+        await loadFoodWeekForAdd();
     }
-
-    if (mealType === "brunch" && !isSunday(date)) {
-        status.innerText = "Brunch can only be saved on Sundays.";
-        return;
+    if (document.getElementById("food-summary").style.display !== "none") {
+        await loadFoodSummary();
     }
-
-    const response = await apiFetch("/api/food", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-            person_id: Number(personId),
-            date,
-            meal_type: mealType,
-            eats: document.getElementById("food-eats").checked,
-            cooks: document.getElementById("food-cooks").checked,
-            cook_helper: document.getElementById("food-cook-helper").checked,
-            guests: Number(document.getElementById("food-guests").value || "0"),
-            take_leftovers_next_day: document.getElementById("food-leftovers").checked,
-            eating_time: document.getElementById("food-time").value,
-            cooking_group_id: document.getElementById("food-cooking-group").value
-                ? Number(document.getElementById("food-cooking-group").value)
-                : null,
-            notes: document.getElementById("food-notes").value.trim(),
-        }),
-    });
-
-    if (!response.ok) {
-        const error = await response.text();
-        status.innerText = `Failed to save food entry: ${error}`;
-        return;
-    }
-
-    status.innerText = "Food entry saved.";
-    showFoodSummary();
-}
-
-async function loadFoodSummary() {
-    const status = document.getElementById("food-summary-status");
-    const tbody = document.querySelector("#food-summary-table tbody");
-    status.innerText = "";
-    tbody.innerHTML = "";
-
-    const weekDates = getWeekDates();
-    const response = await apiFetch(`/api/food/summary?start_date=${weekDates[0]}&end_date=${weekDates[weekDates.length - 1]}`);
-    if (!response.ok) {
-        status.innerText = "Failed to load food summary.";
-        return;
-    }
-
-    const data = await response.json();
-    if (!data.items.length) {
-        status.innerText = "No food entries yet.";
-        return;
-    }
-
-    data.items.forEach((item) => {
-        const row = document.createElement("tr");
-        row.innerHTML = `
-            <td>${item.date}</td>
-            <td>${item.meal_type}</td>
-            <td>${item.cooks.length ? item.cooks.join(", ") : "—"}</td>
-            <td>${item.total_eaters}</td>
-        `;
-        tbody.appendChild(row);
-    });
 }
 
 function showGuestroomAdd() {
@@ -634,7 +1065,7 @@ async function addGuestroomBooking() {
     status.innerText = "";
 
     if (!personId || !guestName || !startAt || !endAt) {
-        status.innerText = "Please fill in all fields.";
+        status.innerText = "Bitte alle Felder ausfüllen.";
         return;
     }
 
@@ -651,19 +1082,12 @@ async function addGuestroomBooking() {
 
     if (!response.ok) {
         const error = await response.text();
-        status.innerText = `Failed to save booking: ${error}`;
+        status.innerText = `Buchung konnte nicht gespeichert werden: ${error}`;
         return;
     }
 
-    status.innerText = "Booking saved.";
+    status.innerText = "Buchung gespeichert.";
     showGuestroomList();
-}
-
-function formatDateTime(value) {
-    if (!value) {
-        return "";
-    }
-    return value.replace("T", " ").replace(":00", "");
 }
 
 async function loadGuestroomBookings() {
@@ -674,46 +1098,52 @@ async function loadGuestroomBookings() {
 
     const response = await apiFetch("/api/guestroom");
     if (!response.ok) {
-        status.innerText = "Failed to load guestroom bookings.";
+        status.innerText = "Gästebuchungen konnten nicht geladen werden.";
         return;
     }
 
     const data = await response.json();
     if (!data.length) {
-        status.innerText = "No bookings yet.";
+        status.innerText = "Noch keine Buchungen.";
         return;
     }
 
     data.forEach((booking) => {
         const row = document.createElement("tr");
+        const durationDays = getDurationDays(booking.start_at, booking.end_at);
         row.innerHTML = `
             <td>${booking.responsible_name}</td>
             <td>${booking.guest_name}</td>
             <td>${formatDateTime(booking.start_at)}</td>
             <td>${formatDateTime(booking.end_at)}</td>
-            <td>${formatDuration(booking.duration_minutes)}</td>
+            <td>${durationDays} ${durationDays === 1 ? "Tag" : "Tage"}</td>
         `;
         tableBody.appendChild(row);
     });
 }
 
 document.addEventListener("DOMContentLoaded", async () => {
+    document.getElementById("food-person-select").addEventListener("change", () => {
+        loadFoodWeekForAdd();
+    });
+
     showSection("home");
     setAuthVisibility(false);
     showLaundryAdd();
     showFoodAdd();
-    initializeFoodForm();
     showGuestroomAdd();
     renderLivingGroups();
     renderPeople();
     syncPersonSelectors();
-    fillCookingGroupSelect();
 
     if (getHouseToken()) {
         applyLoggedInState();
         const loaded = await loadHouseData();
         if (!loaded) {
             logoutHouse();
+        } else {
+            await renderActiveFoodViews();
+            await loadOverviewData();
         }
     }
 });
