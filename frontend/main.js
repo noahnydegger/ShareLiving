@@ -23,6 +23,13 @@ function getOptionalElements(selector) {
     return Array.from(document.querySelectorAll(selector));
 }
 
+function getOptionalChild(element, selector) {
+    if (!element) {
+        return null;
+    }
+    return element.querySelector(selector);
+}
+
 function setElementDisplay(id, value) {
     const element = getElement(id);
     if (element) {
@@ -883,6 +890,36 @@ function getDefaultMealTime(mealType) {
     return "19:00";
 }
 
+function isSunday(dateValue) {
+    if (!dateValue) {
+        return false;
+    }
+    return new Date(`${dateValue}T00:00:00`).getDay() === 0;
+}
+
+function updateBrunchAvailability() {
+    const dateInput = getElement("food-date");
+    const mealSelect = getElement("food-meal-type");
+
+    if (!dateInput || !mealSelect) {
+        return;
+    }
+
+    const brunchOption = getOptionalChild(mealSelect, 'option[value="brunch"]');
+    if (!brunchOption) {
+        return;
+    }
+
+    const dateValue = dateInput.value;
+    const brunchAllowed = isSunday(dateValue);
+
+    brunchOption.disabled = !brunchAllowed;
+
+    if (!brunchAllowed && mealSelect.value === "brunch") {
+        mealSelect.value = "lunch";
+    }
+}
+
 function getMealRowsForWeek(weekStart) {
     const rows = [];
     const weekDates = getWeekDates(weekStart);
@@ -997,14 +1034,14 @@ async function saveFoodWeek() {
     }
 
     for (const row of rows) {
-        const eatsInput = row.querySelector(".food-eats");
-        const cooksInput = row.querySelector(".food-cooks");
-        const cookHelperInput = row.querySelector(".food-cook-helper");
-        const guestsInput = row.querySelector(".food-guests");
-        const leftoversInput = row.querySelector(".food-leftovers");
-        const timeInput = row.querySelector(".food-time");
-        const cookingGroupSelect = row.querySelector(".food-cooking-group");
-        const notesInput = row.querySelector(".food-notes");
+        const eatsInput = getOptionalChild(row, ".food-eats");
+        const cooksInput = getOptionalChild(row, ".food-cooks");
+        const cookHelperInput = getOptionalChild(row, ".food-cook-helper");
+        const guestsInput = getOptionalChild(row, ".food-guests");
+        const leftoversInput = getOptionalChild(row, ".food-leftovers");
+        const timeInput = getOptionalChild(row, ".food-time");
+        const cookingGroupSelect = getOptionalChild(row, ".food-cooking-group");
+        const notesInput = getOptionalChild(row, ".food-notes");
 
         if (
             !eatsInput
@@ -1280,6 +1317,14 @@ function initFoodPage() {
     foodPersonSelect.addEventListener("change", () => {
         loadFoodWeekForAdd();
     });
+
+    updateBrunchAvailability();
+
+    const foodDateInput = getElement("food-date");
+    if (foodDateInput) {
+        foodDateInput.addEventListener("change", updateBrunchAvailability);
+    }
+
     showFoodAdd();
 }
 
