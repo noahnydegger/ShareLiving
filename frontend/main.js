@@ -11,11 +11,30 @@ let currentOverviewView = "week";
 let currentOverviewDate = getMonday(new Date());
 let currentOverviewEvents = [];
 
+function getElement(id) {
+    return document.getElementById(id);
+}
+
+function getOptionalElement(selector) {
+    return document.querySelector(selector);
+}
+
+function getOptionalElements(selector) {
+    return Array.from(document.querySelectorAll(selector));
+}
+
+function setElementDisplay(id, value) {
+    const element = getElement(id);
+    if (element) {
+        element.style.display = value;
+    }
+}
+
 function showSection(id) {
     document.querySelectorAll("section").forEach((section) => {
         section.style.display = "none";
     });
-    const element = document.getElementById(id);
+    const element = getElement(id);
     if (element) {
         element.style.display = "block";
     }
@@ -86,12 +105,12 @@ function setAuthVisibility(isLoggedIn) {
     document.querySelectorAll("[data-auth-only]").forEach((element) => {
         element.style.display = isLoggedIn ? "" : "none";
     });
-    document.getElementById("auth-panels").style.display = isLoggedIn ? "none" : "grid";
-    document.getElementById("house-dashboard").style.display = isLoggedIn ? "block" : "none";
+    setElementDisplay("auth-panels", isLoggedIn ? "none" : "grid");
+    setElementDisplay("house-dashboard", isLoggedIn ? "block" : "none");
 }
 
 function fillPersonSelect(selectId, includeEmpty = false, emptyLabel = "Person auswählen") {
-    const select = document.getElementById(selectId);
+    const select = getElement(selectId);
     if (!select) {
         return;
     }
@@ -140,7 +159,10 @@ function createCookingGroupOptions(selectedValue = "") {
 }
 
 function renderLivingGroups() {
-    const list = document.getElementById("living-groups-list");
+    const list = getElement("living-groups-list");
+    if (!list) {
+        return;
+    }
     list.innerHTML = "";
 
     if (!currentLivingGroups.length) {
@@ -154,7 +176,10 @@ function renderLivingGroups() {
         list.appendChild(item);
     });
 
-    const select = document.getElementById("person-living-group");
+    const select = getElement("person-living-group");
+    if (!select) {
+        return;
+    }
     select.innerHTML = '<option value="">Keine Wohngruppe</option>';
     currentLivingGroups.forEach((group) => {
         const option = document.createElement("option");
@@ -165,12 +190,16 @@ function renderLivingGroups() {
 }
 
 function renderPeople() {
-    const list = document.getElementById("people-list");
+    const list = getElement("people-list");
+    const currentPersonStatus = getElement("current-person-status");
+    if (!list || !currentPersonStatus) {
+        return;
+    }
     list.innerHTML = "";
 
     if (!currentPeople.length) {
         list.innerHTML = "<li>Noch keine Personen.</li>";
-        document.getElementById("current-person-status").innerText = "Füge zuerst eine Person hinzu, um Wäsche und Essen zu nutzen.";
+        currentPersonStatus.innerText = "Füge zuerst eine Person hinzu, um Wäsche und Essen zu nutzen.";
         return;
     }
 
@@ -182,7 +211,7 @@ function renderPeople() {
         list.appendChild(item);
     });
 
-    document.getElementById("current-person-status").innerText = getSelectedPersonId()
+    currentPersonStatus.innerText = getSelectedPersonId()
         ? ""
         : "Wähle eine aktuelle Person für schnellere Einträge.";
 }
@@ -216,7 +245,10 @@ async function loadHouseData() {
 function applyLoggedInState() {
     const houseName = localStorage.getItem(HOUSE_NAME_KEY) || "";
     setAuthVisibility(true);
-    document.getElementById("active-house-label").innerText = `Angemeldet als: ${houseName}`;
+    const activeHouseLabel = getElement("active-house-label");
+    if (activeHouseLabel) {
+        activeHouseLabel.innerText = `Angemeldet als: ${houseName}`;
+    }
 }
 
 async function handleSuccessfulAuth(auth) {
@@ -231,9 +263,14 @@ async function handleSuccessfulAuth(auth) {
 }
 
 async function createHouse() {
-    const houseName = document.getElementById("create-house-name").value.trim();
-    const password = document.getElementById("create-house-password").value;
-    const status = document.getElementById("create-house-status");
+    const houseNameInput = getElement("create-house-name");
+    const passwordInput = getElement("create-house-password");
+    const status = getElement("create-house-status");
+    if (!houseNameInput || !passwordInput || !status) {
+        return;
+    }
+    const houseName = houseNameInput.value.trim();
+    const password = passwordInput.value;
     status.innerText = "";
 
     if (!houseName || !password) {
@@ -258,9 +295,14 @@ async function createHouse() {
 }
 
 async function loginHouse() {
-    const houseName = document.getElementById("login-house-name").value.trim();
-    const password = document.getElementById("login-house-password").value;
-    const status = document.getElementById("login-house-status");
+    const houseNameInput = getElement("login-house-name");
+    const passwordInput = getElement("login-house-password");
+    const status = getElement("login-house-status");
+    if (!houseNameInput || !passwordInput || !status) {
+        return;
+    }
+    const houseName = houseNameInput.value.trim();
+    const password = passwordInput.value;
     status.innerText = "";
 
     if (!houseName || !password) {
@@ -296,7 +338,10 @@ function logoutHouse() {
 }
 
 function handleCurrentPersonChange() {
-    const select = document.getElementById("current-person-select");
+    const select = getElement("current-person-select");
+    if (!select) {
+        return;
+    }
     setSelectedPersonId(select.value);
     syncPersonSelectors();
     renderPeople();
@@ -304,8 +349,11 @@ function handleCurrentPersonChange() {
 }
 
 async function createLivingGroup() {
-    const input = document.getElementById("living-group-name");
-    const status = document.getElementById("living-group-status");
+    const input = getElement("living-group-name");
+    const status = getElement("living-group-status");
+    if (!input || !status) {
+        return;
+    }
     status.innerText = "";
 
     const response = await apiFetch("/api/living-groups", {
@@ -327,9 +375,12 @@ async function createLivingGroup() {
 }
 
 async function createPerson() {
-    const nameInput = document.getElementById("person-name");
-    const groupSelect = document.getElementById("person-living-group");
-    const status = document.getElementById("person-status");
+    const nameInput = getElement("person-name");
+    const groupSelect = getElement("person-living-group");
+    const status = getElement("person-status");
+    if (!nameInput || !groupSelect || !status) {
+        return;
+    }
     status.innerText = "";
 
     const payload = {
@@ -460,9 +511,9 @@ function getOverviewRangeLabel() {
 
 function getOverviewFilterState() {
     return {
-        food: document.getElementById("overview-filter-food").checked,
-        laundry: document.getElementById("overview-filter-laundry").checked,
-        guestroom: document.getElementById("overview-filter-guestroom").checked,
+        food: getElement("overview-filter-food")?.checked ?? true,
+        laundry: getElement("overview-filter-laundry")?.checked ?? true,
+        guestroom: getElement("overview-filter-guestroom")?.checked ?? true,
     };
 }
 
@@ -584,7 +635,10 @@ function createOverviewEventHtml(event) {
 }
 
 function renderOverviewWeek() {
-    const calendar = document.getElementById("overview-calendar");
+    const calendar = getElement("overview-calendar");
+    if (!calendar) {
+        return;
+    }
     const weekStart = getMonday(currentOverviewDate);
     const weekDates = getWeekDates(weekStart);
 
@@ -609,7 +663,10 @@ function renderOverviewWeek() {
 }
 
 function renderOverviewMonth() {
-    const calendar = document.getElementById("overview-calendar");
+    const calendar = getElement("overview-calendar");
+    if (!calendar) {
+        return;
+    }
     const range = getDateRangeForOverview();
     const days = [];
     const weekdayLabels = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
@@ -641,9 +698,16 @@ function renderOverviewMonth() {
 }
 
 function renderOverviewCalendar() {
-    document.getElementById("overview-range-label").innerText = getOverviewRangeLabel();
-    document.getElementById("overview-week-button").classList.toggle("is-active", currentOverviewView === "week");
-    document.getElementById("overview-month-button").classList.toggle("is-active", currentOverviewView === "month");
+    const rangeLabel = getElement("overview-range-label");
+    const weekButton = getElement("overview-week-button");
+    const monthButton = getElement("overview-month-button");
+    if (!rangeLabel || !weekButton || !monthButton) {
+        return;
+    }
+
+    rangeLabel.innerText = getOverviewRangeLabel();
+    weekButton.classList.toggle("is-active", currentOverviewView === "week");
+    monthButton.classList.toggle("is-active", currentOverviewView === "month");
 
     if (currentOverviewView === "week") {
         renderOverviewWeek();
@@ -653,7 +717,10 @@ function renderOverviewCalendar() {
 }
 
 async function loadOverviewData() {
-    const status = document.getElementById("overview-status");
+    const status = getElement("overview-status");
+    if (!status) {
+        return;
+    }
     const range = getDateRangeForOverview();
     const startDate = formatDate(range.start);
     const endDate = formatDate(range.end);
@@ -711,14 +778,14 @@ function goToTodayOverview() {
 }
 
 function showLaundryAdd() {
-    document.getElementById("laundry-add").style.display = "block";
-    document.getElementById("laundry-list").style.display = "none";
+    setElementDisplay("laundry-add", "block");
+    setElementDisplay("laundry-list", "none");
     syncPersonSelectors();
 }
 
 function showLaundryList() {
-    document.getElementById("laundry-add").style.display = "none";
-    document.getElementById("laundry-list").style.display = "block";
+    setElementDisplay("laundry-add", "none");
+    setElementDisplay("laundry-list", "block");
     loadLaundry();
 }
 
@@ -732,11 +799,18 @@ function formatDuration(minutes) {
 }
 
 async function addLaundryBooking() {
-    const personId = document.getElementById("laundry-person-select").value;
-    const date = document.getElementById("laundry-date").value;
-    const start = document.getElementById("laundry-start").value;
-    const end = document.getElementById("laundry-end").value;
-    const status = document.getElementById("laundry-add-status");
+    const personSelect = getElement("laundry-person-select");
+    const dateInput = getElement("laundry-date");
+    const startInput = getElement("laundry-start");
+    const endInput = getElement("laundry-end");
+    const status = getElement("laundry-add-status");
+    if (!personSelect || !dateInput || !startInput || !endInput || !status) {
+        return;
+    }
+    const personId = personSelect.value;
+    const date = dateInput.value;
+    const start = startInput.value;
+    const end = endInput.value;
     status.innerText = "";
 
     if (!personId || !date || !start || !end) {
@@ -766,8 +840,11 @@ async function addLaundryBooking() {
 }
 
 async function loadLaundry() {
-    const status = document.getElementById("laundry-list-status");
-    const tableBody = document.querySelector("#laundry-table tbody");
+    const status = getElement("laundry-list-status");
+    const tableBody = getOptionalElement("#laundry-table tbody");
+    if (!status || !tableBody) {
+        return;
+    }
     status.innerText = "";
     tableBody.innerHTML = "";
 
@@ -840,13 +917,18 @@ function formatMealLabel(mealType) {
 }
 
 function renderFoodWeekTable(entries) {
-    const personId = document.getElementById("food-person-select").value || getSelectedPersonId();
-    const tbody = document.querySelector("#food-add-table tbody");
-    const status = document.getElementById("food-add-status");
+    const personSelect = getElement("food-person-select");
+    const weekLabel = getElement("food-add-week-label");
+    const status = getElement("food-add-status");
+    const tbody = getOptionalElement("#food-add-table tbody");
+    if (!personSelect || !weekLabel || !status || !tbody) {
+        return;
+    }
+    const personId = personSelect.value || getSelectedPersonId();
     const weekRows = getMealRowsForWeek(currentFoodAddWeekStart);
     const entryMap = getFoodEntriesMap(entries, personId);
 
-    document.getElementById("food-add-week-label").innerText = formatWeekLabel(currentFoodAddWeekStart);
+    weekLabel.innerText = formatWeekLabel(currentFoodAddWeekStart);
     tbody.innerHTML = "";
     status.innerText = currentPeople.length ? "" : "Füge zuerst eine Person hinzu, bevor du Essen planst.";
 
@@ -875,7 +957,10 @@ async function loadFoodWeekForAdd() {
     const weekDates = getWeekDates(currentFoodAddWeekStart);
     const response = await apiFetch(`/api/food?start_date=${weekDates[0]}&end_date=${weekDates[weekDates.length - 1]}`);
     if (!response.ok) {
-        document.getElementById("food-add-status").innerText = "Essenswoche konnte nicht geladen werden.";
+        const status = getElement("food-add-status");
+        if (status) {
+            status.innerText = "Essenswoche konnte nicht geladen werden.";
+        }
         return;
     }
     renderFoodWeekTable(await response.json());
@@ -892,8 +977,13 @@ function goToTodayFoodAdd() {
 }
 
 async function saveFoodWeek() {
-    const personId = document.getElementById("food-person-select").value || getSelectedPersonId();
-    const status = document.getElementById("food-add-status");
+    const personSelect = getElement("food-person-select");
+    const status = getElement("food-add-status");
+    const rows = getOptionalElements("#food-add-table tbody tr");
+    if (!personSelect || !status) {
+        return;
+    }
+    const personId = personSelect.value || getSelectedPersonId();
     status.innerText = "";
 
     if (!personId) {
@@ -901,22 +991,49 @@ async function saveFoodWeek() {
         return;
     }
 
-    const rows = Array.from(document.querySelectorAll("#food-add-table tbody tr"));
+    if (!rows.length) {
+        status.innerText = "Keine Essenseinträge zum Speichern gefunden.";
+        return;
+    }
+
     for (const row of rows) {
+        const eatsInput = row.querySelector(".food-eats");
+        const cooksInput = row.querySelector(".food-cooks");
+        const cookHelperInput = row.querySelector(".food-cook-helper");
+        const guestsInput = row.querySelector(".food-guests");
+        const leftoversInput = row.querySelector(".food-leftovers");
+        const timeInput = row.querySelector(".food-time");
+        const cookingGroupSelect = row.querySelector(".food-cooking-group");
+        const notesInput = row.querySelector(".food-notes");
+
+        if (
+            !eatsInput
+            || !cooksInput
+            || !cookHelperInput
+            || !guestsInput
+            || !leftoversInput
+            || !timeInput
+            || !cookingGroupSelect
+            || !notesInput
+        ) {
+            status.innerText = "Essensformular ist unvollständig.";
+            return;
+        }
+
         const payload = {
             person_id: Number(personId),
             date: row.dataset.date,
             meal_type: row.dataset.mealType,
-            eats: row.querySelector(".food-eats").checked,
-            cooks: row.querySelector(".food-cooks").checked,
-            cook_helper: row.querySelector(".food-cook-helper").checked,
-            guests: Number(row.querySelector(".food-guests").value || "0"),
-            take_leftovers_next_day: row.querySelector(".food-leftovers").checked,
-            eating_time: row.querySelector(".food-time").value || getDefaultMealTime(row.dataset.mealType),
-            cooking_group_id: row.querySelector(".food-cooking-group").value
-                ? Number(row.querySelector(".food-cooking-group").value)
+            eats: eatsInput.checked,
+            cooks: cooksInput.checked,
+            cook_helper: cookHelperInput.checked,
+            guests: Number(guestsInput.value || "0"),
+            take_leftovers_next_day: leftoversInput.checked,
+            eating_time: timeInput.value || getDefaultMealTime(row.dataset.mealType),
+            cooking_group_id: cookingGroupSelect.value
+                ? Number(cookingGroupSelect.value)
                 : null,
-            notes: row.querySelector(".food-notes").value.trim(),
+            notes: notesInput.value.trim(),
         };
 
         const response = await apiFetch("/api/food", {
@@ -937,8 +1054,8 @@ async function saveFoodWeek() {
 }
 
 function showFoodAdd() {
-    document.getElementById("food-add").style.display = "block";
-    document.getElementById("food-summary").style.display = "none";
+    setElementDisplay("food-add", "block");
+    setElementDisplay("food-summary", "none");
     syncPersonSelectors();
     if (getHouseToken()) {
         loadFoodWeekForAdd();
@@ -946,10 +1063,14 @@ function showFoodAdd() {
 }
 
 function buildSummaryRows(entries) {
-    const tbody = document.querySelector("#food-summary-table tbody");
-    const status = document.getElementById("food-summary-status");
+    const tbody = getOptionalElement("#food-summary-table tbody");
+    const status = getElement("food-summary-status");
+    const weekLabel = getElement("food-summary-week-label");
+    if (!tbody || !status || !weekLabel) {
+        return;
+    }
     tbody.innerHTML = "";
-    document.getElementById("food-summary-week-label").innerText = formatWeekLabel(currentFoodSummaryWeekStart);
+    weekLabel.innerText = formatWeekLabel(currentFoodSummaryWeekStart);
     status.innerText = "";
 
     const entriesByMeal = new Map();
@@ -1008,7 +1129,10 @@ async function loadFoodSummary() {
     const weekDates = getWeekDates(currentFoodSummaryWeekStart);
     const response = await apiFetch(`/api/food?start_date=${weekDates[0]}&end_date=${weekDates[weekDates.length - 1]}`);
     if (!response.ok) {
-        document.getElementById("food-summary-status").innerText = "Essensübersicht konnte nicht geladen werden.";
+        const status = getElement("food-summary-status");
+        if (status) {
+            status.innerText = "Essensübersicht konnte nicht geladen werden.";
+        }
         return;
     }
     buildSummaryRows(await response.json());
@@ -1025,29 +1149,31 @@ function goToTodayFoodSummary() {
 }
 
 function showFoodSummary() {
-    document.getElementById("food-add").style.display = "none";
-    document.getElementById("food-summary").style.display = "block";
+    setElementDisplay("food-add", "none");
+    setElementDisplay("food-summary", "block");
     loadFoodSummary();
 }
 
 async function renderActiveFoodViews() {
-    if (document.getElementById("food-add").style.display !== "none") {
+    const foodAdd = getElement("food-add");
+    const foodSummary = getElement("food-summary");
+    if (foodAdd && foodAdd.style.display !== "none") {
         await loadFoodWeekForAdd();
     }
-    if (document.getElementById("food-summary").style.display !== "none") {
+    if (foodSummary && foodSummary.style.display !== "none") {
         await loadFoodSummary();
     }
 }
 
 function showGuestroomAdd() {
-    document.getElementById("guestroom-add").style.display = "block";
-    document.getElementById("guestroom-list").style.display = "none";
+    setElementDisplay("guestroom-add", "block");
+    setElementDisplay("guestroom-list", "none");
     syncPersonSelectors();
 }
 
 function showGuestroomList() {
-    document.getElementById("guestroom-add").style.display = "none";
-    document.getElementById("guestroom-list").style.display = "block";
+    setElementDisplay("guestroom-add", "none");
+    setElementDisplay("guestroom-list", "block");
     loadGuestroomBookings();
 }
 
@@ -1057,11 +1183,18 @@ function getPersonNameById(personId) {
 }
 
 async function addGuestroomBooking() {
-    const personId = document.getElementById("guestroom-person-select").value;
-    const guestName = document.getElementById("guestroom-guest").value.trim();
-    const startAt = document.getElementById("guestroom-start").value;
-    const endAt = document.getElementById("guestroom-end").value;
-    const status = document.getElementById("guestroom-add-status");
+    const personSelect = getElement("guestroom-person-select");
+    const guestInput = getElement("guestroom-guest");
+    const startInput = getElement("guestroom-start");
+    const endInput = getElement("guestroom-end");
+    const status = getElement("guestroom-add-status");
+    if (!personSelect || !guestInput || !startInput || !endInput || !status) {
+        return;
+    }
+    const personId = personSelect.value;
+    const guestName = guestInput.value.trim();
+    const startAt = startInput.value;
+    const endAt = endInput.value;
     status.innerText = "";
 
     if (!personId || !guestName || !startAt || !endAt) {
@@ -1091,8 +1224,11 @@ async function addGuestroomBooking() {
 }
 
 async function loadGuestroomBookings() {
-    const status = document.getElementById("guestroom-list-status");
-    const tableBody = document.querySelector("#guestroom-table tbody");
+    const status = getElement("guestroom-list-status");
+    const tableBody = getOptionalElement("#guestroom-table tbody");
+    if (!status || !tableBody) {
+        return;
+    }
     status.innerText = "";
     tableBody.innerHTML = "";
 
@@ -1122,19 +1258,70 @@ async function loadGuestroomBookings() {
     });
 }
 
-document.addEventListener("DOMContentLoaded", async () => {
-    document.getElementById("food-person-select").addEventListener("change", () => {
+function initLaundryPage() {
+    const laundrySection = getElement("laundry");
+    const laundryAdd = getElement("laundry-add");
+    const laundryList = getElement("laundry-list");
+    if (!laundrySection || !laundryAdd || !laundryList) {
+        return;
+    }
+    showLaundryAdd();
+}
+
+function initFoodPage() {
+    const foodSection = getElement("food");
+    const foodPersonSelect = getElement("food-person-select");
+    const foodAdd = getElement("food-add");
+    const foodSummary = getElement("food-summary");
+    if (!foodSection || !foodPersonSelect || !foodAdd || !foodSummary) {
+        return;
+    }
+
+    foodPersonSelect.addEventListener("change", () => {
         loadFoodWeekForAdd();
     });
+    showFoodAdd();
+}
 
+function initOverviewPage() {
+    const overviewCalendar = getElement("overview-calendar");
+    const overviewRangeLabel = getElement("overview-range-label");
+    const overviewWeekButton = getElement("overview-week-button");
+    const overviewMonthButton = getElement("overview-month-button");
+    if (!overviewCalendar || !overviewRangeLabel || !overviewWeekButton || !overviewMonthButton) {
+        return;
+    }
+    renderOverviewCalendar();
+}
+
+function initHomePage() {
+    const homeSection = getElement("home");
+    if (!homeSection) {
+        return;
+    }
     showSection("home");
     setAuthVisibility(false);
-    showLaundryAdd();
-    showFoodAdd();
-    showGuestroomAdd();
     renderLivingGroups();
     renderPeople();
     syncPersonSelectors();
+}
+
+function initGuestroomPage() {
+    const guestroomSection = getElement("guestroom");
+    const guestroomAdd = getElement("guestroom-add");
+    const guestroomList = getElement("guestroom-list");
+    if (!guestroomSection || !guestroomAdd || !guestroomList) {
+        return;
+    }
+    showGuestroomAdd();
+}
+
+document.addEventListener("DOMContentLoaded", async () => {
+    initHomePage();
+    initLaundryPage();
+    initFoodPage();
+    initOverviewPage();
+    initGuestroomPage();
 
     if (getHouseToken()) {
         applyLoggedInState();
