@@ -5,6 +5,7 @@ const HOUSE_ID_KEY = "shareLiving.houseId";
 
 let currentPeople = [];
 let currentLivingGroups = [];
+let currentGuestRooms = [];
 let currentFoodAddWeekStart = getMonday(new Date());
 let currentFoodSummaryWeekStart = getMonday(new Date());
 let currentOverviewView = "week";
@@ -15,6 +16,14 @@ let editingLaundryBookingId = null;
 let editingGuestroomBookingId = null;
 let currentLaundryBookings = [];
 let currentGuestroomBookings = [];
+let currentLaundryOffset = 0;
+let currentGuestroomOffset = 0;
+let editingLivingGroupId = null;
+let editingPersonId = null;
+let editingGuestRoomId = null;
+let livingGroupEditMode = false;
+let personEditMode = false;
+let guestRoomEditMode = false;
 
 function getElement(id) {
     return document.getElementById(id);
@@ -158,6 +167,7 @@ function syncPersonSelectors() {
     fillPersonSelect("laundry-person-select");
     fillPersonSelect("food-person-select");
     fillPersonSelect("guestroom-person-select");
+    renderGuestroomRoomOptions();
 }
 
 function createCookingGroupOptions(selectedValue = "") {
@@ -184,7 +194,13 @@ function renderLivingGroups() {
 
     currentLivingGroups.forEach((group) => {
         const item = document.createElement("li");
-        item.textContent = group.name;
+        item.innerHTML = livingGroupEditMode
+            ? `
+                <span>${group.name}</span>
+                <button type="button" onclick="editLivingGroupById(${group.id})">Bearbeiten</button>
+                <button type="button" onclick="deleteLivingGroup(${group.id})">Löschen</button>
+            `
+            : `<span>${group.name}</span>`;
         list.appendChild(item);
     });
 
@@ -199,6 +215,57 @@ function renderLivingGroups() {
         option.textContent = group.name;
         select.appendChild(option);
     });
+}
+
+function renderGuestRooms() {
+    const list = getElement("guest-rooms-list");
+    if (!list) {
+        return;
+    }
+    list.innerHTML = "";
+
+    if (!currentGuestRooms.length) {
+        list.innerHTML = "<li>Noch keine Gästezimmer.</li>";
+        return;
+    }
+
+    currentGuestRooms.forEach((room) => {
+        const item = document.createElement("li");
+        item.innerHTML = guestRoomEditMode
+            ? `
+                <span>${room.name}</span>
+                <button type="button" onclick="editGuestRoomById(${room.id})">Bearbeiten</button>
+                <button type="button" onclick="deleteGuestRoom(${room.id})">Löschen</button>
+            `
+            : `<span>${room.name}</span>`;
+        list.appendChild(item);
+    });
+}
+
+function renderGuestroomRoomOptions() {
+    const select = getElement("guestroom-room-select");
+    const personSelect = getElement("guestroom-person-select");
+    if (!select) {
+        return;
+    }
+
+    const selectedValue = select.value;
+    const selectedPerson = currentPeople.find((person) => String(person.id) === String(personSelect?.value || ""));
+    const ownRoomLabel = selectedPerson
+        ? `Eigenes Zimmer (${selectedPerson.name})`
+        : "Eigenes Zimmer";
+
+    select.innerHTML = `<option value="">${ownRoomLabel}</option>`;
+    currentGuestRooms.forEach((room) => {
+        const option = document.createElement("option");
+        option.value = String(room.id);
+        option.textContent = room.name;
+        select.appendChild(option);
+    });
+
+    if (selectedValue && currentGuestRooms.some((room) => String(room.id) === String(selectedValue))) {
+        select.value = selectedValue;
+    }
 }
 
 function renderPeople() {
@@ -217,9 +284,16 @@ function renderPeople() {
 
     currentPeople.forEach((person) => {
         const item = document.createElement("li");
-        item.textContent = person.living_group_name
+        const label = person.living_group_name
             ? `${person.name} - ${person.living_group_name}`
             : person.name;
+        item.innerHTML = personEditMode
+            ? `
+                <span>${label}</span>
+                <button type="button" onclick="editPersonById(${person.id})">Bearbeiten</button>
+                <button type="button" onclick="deletePerson(${person.id})">Löschen</button>
+            `
+            : `<span>${label}</span>`;
         list.appendChild(item);
     });
 
@@ -229,20 +303,23 @@ function renderPeople() {
 }
 
 async function loadHouseData() {
-    const [groupsResponse, peopleResponse] = await Promise.all([
+    const [groupsResponse, peopleResponse, guestRoomsResponse] = await Promise.all([
         apiFetch("/api/living-groups"),
         apiFetch("/api/people"),
+        apiFetch("/api/guest-rooms"),
     ]);
 
-    if (!groupsResponse.ok || !peopleResponse.ok) {
+    if (!groupsResponse.ok || !peopleResponse.ok || !guestRoomsResponse.ok) {
         return false;
     }
 
     currentLivingGroups = await groupsResponse.json();
     currentPeople = await peopleResponse.json();
+    currentGuestRooms = await guestRoomsResponse.json();
 
     renderLivingGroups();
     renderPeople();
+    renderGuestRooms();
     syncPersonSelectors();
 
     const selectedPersonId = getSelectedPersonId();
@@ -342,9 +419,20 @@ function logoutHouse() {
     clearAuthState();
     currentPeople = [];
     currentLivingGroups = [];
+    currentGuestRooms = [];
+    editingLivingGroupId = null;
+    editingPersonId = null;
+    editingGuestRoomId = null;
+    livingGroupEditMode = false;
+    personEditMode = false;
+    guestRoomEditMode = false;
     setAuthVisibility(false);
     renderLivingGroups();
     renderPeople();
+    renderGuestRooms();
+    updateLivingGroupFormUi();
+    updatePersonFormUi();
+    updateGuestRoomFormUi();
     syncPersonSelectors();
     showSection("home");
 }
@@ -386,6 +474,103 @@ async function createLivingGroup() {
     await renderActiveFoodViews();
 }
 
+function updateLivingGroupFormUi() {
+    const saveButton = getElement("living-group-save-button");
+    const cancelButton = getElement("living-group-cancel-button");
+    const editToggle = getElement("living-group-edit-toggle");
+    if (saveButton) {
+        saveButton.innerText = editingLivingGroupId ? "Änderungen speichern" : "Wohngruppe hinzufügen";
+    }
+    if (cancelButton) {
+        cancelButton.style.display = editingLivingGroupId ? "inline-block" : "none";
+    }
+    if (editToggle) {
+        editToggle.innerText = livingGroupEditMode ? "Fertig" : "Edit Wohngruppen";
+    }
+}
+
+function toggleLivingGroupEditMode() {
+    livingGroupEditMode = !livingGroupEditMode;
+    if (!livingGroupEditMode) {
+        resetLivingGroupForm();
+    }
+    renderLivingGroups();
+    updateLivingGroupFormUi();
+}
+
+function resetLivingGroupForm() {
+    editingLivingGroupId = null;
+    const input = getElement("living-group-name");
+    const status = getElement("living-group-status");
+    if (input) {
+        input.value = "";
+    }
+    if (status) {
+        status.innerText = "";
+    }
+    updateLivingGroupFormUi();
+}
+
+function editLivingGroupById(livingGroupId) {
+    const group = currentLivingGroups.find((entry) => entry.id === livingGroupId);
+    const input = getElement("living-group-name");
+    const status = getElement("living-group-status");
+    if (!group || !input || !status) {
+        return;
+    }
+    editingLivingGroupId = livingGroupId;
+    input.value = group.name;
+    status.innerText = "Wohngruppe bearbeiten.";
+    updateLivingGroupFormUi();
+}
+
+async function saveLivingGroup() {
+    if (editingLivingGroupId) {
+        const input = getElement("living-group-name");
+        const status = getElement("living-group-status");
+        if (!input || !status) {
+            return;
+        }
+        status.innerText = "";
+        const response = await apiFetch(`/api/living-groups/${editingLivingGroupId}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name: input.value.trim() }),
+        });
+        if (!response.ok) {
+            const error = await response.text();
+            status.innerText = `Wohngruppe konnte nicht gespeichert werden: ${error}`;
+            return;
+        }
+        status.innerText = "Wohngruppe aktualisiert.";
+        resetLivingGroupForm();
+        await loadHouseData();
+        await renderActiveFoodViews();
+        return;
+    }
+    await createLivingGroup();
+}
+
+async function deleteLivingGroup(livingGroupId) {
+    const status = getElement("living-group-status");
+    if (!window.confirm("Wohngruppe wirklich löschen?")) {
+        return;
+    }
+    const response = await apiFetch(`/api/living-groups/${livingGroupId}`, { method: "DELETE" });
+    if (!response.ok) {
+        const error = await response.text();
+        if (status) {
+            status.innerText = `Wohngruppe konnte nicht gelöscht werden: ${error}`;
+        }
+        return;
+    }
+    if (editingLivingGroupId === livingGroupId) {
+        resetLivingGroupForm();
+    }
+    await loadHouseData();
+    await renderActiveFoodViews();
+}
+
 async function createPerson() {
     const nameInput = getElement("person-name");
     const groupSelect = getElement("person-living-group");
@@ -417,6 +602,233 @@ async function createPerson() {
     status.innerText = "Person hinzugefügt.";
     await loadHouseData();
     await renderActiveFoodViews();
+}
+
+function updatePersonFormUi() {
+    const saveButton = getElement("person-save-button");
+    const cancelButton = getElement("person-cancel-button");
+    const editToggle = getElement("person-edit-toggle");
+    if (saveButton) {
+        saveButton.innerText = editingPersonId ? "Änderungen speichern" : "Person hinzufügen";
+    }
+    if (cancelButton) {
+        cancelButton.style.display = editingPersonId ? "inline-block" : "none";
+    }
+    if (editToggle) {
+        editToggle.innerText = personEditMode ? "Fertig" : "Edit Personen";
+    }
+}
+
+function togglePersonEditMode() {
+    personEditMode = !personEditMode;
+    if (!personEditMode) {
+        resetPersonForm();
+    }
+    renderPeople();
+    updatePersonFormUi();
+}
+
+function resetPersonForm() {
+    editingPersonId = null;
+    const nameInput = getElement("person-name");
+    const groupSelect = getElement("person-living-group");
+    const status = getElement("person-status");
+    if (nameInput) {
+        nameInput.value = "";
+    }
+    if (groupSelect) {
+        groupSelect.value = "";
+    }
+    if (status) {
+        status.innerText = "";
+    }
+    updatePersonFormUi();
+}
+
+function editPersonById(personId) {
+    const person = currentPeople.find((entry) => entry.id === personId);
+    const nameInput = getElement("person-name");
+    const groupSelect = getElement("person-living-group");
+    const status = getElement("person-status");
+    if (!person || !nameInput || !groupSelect || !status) {
+        return;
+    }
+    editingPersonId = personId;
+    nameInput.value = person.name;
+    groupSelect.value = person.living_group_id ? String(person.living_group_id) : "";
+    status.innerText = "Person bearbeiten.";
+    updatePersonFormUi();
+}
+
+async function savePerson() {
+    if (editingPersonId) {
+        const nameInput = getElement("person-name");
+        const groupSelect = getElement("person-living-group");
+        const status = getElement("person-status");
+        if (!nameInput || !groupSelect || !status) {
+            return;
+        }
+        status.innerText = "";
+        const response = await apiFetch(`/api/people/${editingPersonId}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                name: nameInput.value.trim(),
+                living_group_id: groupSelect.value ? Number(groupSelect.value) : null,
+            }),
+        });
+        if (!response.ok) {
+            const error = await response.text();
+            status.innerText = `Person konnte nicht gespeichert werden: ${error}`;
+            return;
+        }
+        status.innerText = "Person aktualisiert.";
+        resetPersonForm();
+        await loadHouseData();
+        await renderActiveFoodViews();
+        return;
+    }
+    await createPerson();
+}
+
+async function deletePerson(personId) {
+    const status = getElement("person-status");
+    if (!window.confirm("Person wirklich löschen?")) {
+        return;
+    }
+    const response = await apiFetch(`/api/people/${personId}`, { method: "DELETE" });
+    if (!response.ok) {
+        const error = await response.text();
+        if (status) {
+            status.innerText = `Person konnte nicht gelöscht werden: ${error}`;
+        }
+        return;
+    }
+    if (editingPersonId === personId) {
+        resetPersonForm();
+    }
+    await loadHouseData();
+    await renderActiveFoodViews();
+}
+
+async function createGuestRoom() {
+    const input = getElement("guest-room-name");
+    const status = getElement("guest-room-status");
+    if (!input || !status) {
+        return;
+    }
+    status.innerText = "";
+
+    const response = await apiFetch("/api/guest-rooms", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: input.value.trim() }),
+    });
+
+    if (!response.ok) {
+        const error = await response.text();
+        status.innerText = `Gästezimmer konnte nicht hinzugefügt werden: ${error}`;
+        return;
+    }
+
+    input.value = "";
+    status.innerText = "Gästezimmer hinzugefügt.";
+    await loadHouseData();
+}
+
+function updateGuestRoomFormUi() {
+    const saveButton = getElement("guest-room-save-button");
+    const cancelButton = getElement("guest-room-cancel-button");
+    const editToggle = getElement("guest-room-edit-toggle");
+    if (saveButton) {
+        saveButton.innerText = editingGuestRoomId ? "Änderungen speichern" : "Gästezimmer hinzufügen";
+    }
+    if (cancelButton) {
+        cancelButton.style.display = editingGuestRoomId ? "inline-block" : "none";
+    }
+    if (editToggle) {
+        editToggle.innerText = guestRoomEditMode ? "Fertig" : "Edit Gästezimmer";
+    }
+}
+
+function toggleGuestRoomEditMode() {
+    guestRoomEditMode = !guestRoomEditMode;
+    if (!guestRoomEditMode) {
+        resetGuestRoomForm();
+    }
+    renderGuestRooms();
+    updateGuestRoomFormUi();
+}
+
+function resetGuestRoomForm() {
+    editingGuestRoomId = null;
+    const input = getElement("guest-room-name");
+    const status = getElement("guest-room-status");
+    if (input) {
+        input.value = "";
+    }
+    if (status) {
+        status.innerText = "";
+    }
+    updateGuestRoomFormUi();
+}
+
+function editGuestRoomById(guestRoomId) {
+    const room = currentGuestRooms.find((entry) => entry.id === guestRoomId);
+    const input = getElement("guest-room-name");
+    const status = getElement("guest-room-status");
+    if (!room || !input || !status) {
+        return;
+    }
+    editingGuestRoomId = guestRoomId;
+    input.value = room.name;
+    status.innerText = "Gästezimmer bearbeiten.";
+    updateGuestRoomFormUi();
+}
+
+async function saveGuestRoom() {
+    if (editingGuestRoomId) {
+        const input = getElement("guest-room-name");
+        const status = getElement("guest-room-status");
+        if (!input || !status) {
+            return;
+        }
+        status.innerText = "";
+        const response = await apiFetch(`/api/guest-rooms/${editingGuestRoomId}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name: input.value.trim() }),
+        });
+        if (!response.ok) {
+            const error = await response.text();
+            status.innerText = `Gästezimmer konnte nicht gespeichert werden: ${error}`;
+            return;
+        }
+        status.innerText = "Gästezimmer aktualisiert.";
+        resetGuestRoomForm();
+        await loadHouseData();
+        return;
+    }
+    await createGuestRoom();
+}
+
+async function deleteGuestRoom(guestRoomId) {
+    const status = getElement("guest-room-status");
+    if (!window.confirm("Gästezimmer wirklich löschen?")) {
+        return;
+    }
+    const response = await apiFetch(`/api/guest-rooms/${guestRoomId}`, { method: "DELETE" });
+    if (!response.ok) {
+        const error = await response.text();
+        if (status) {
+            status.innerText = `Gästezimmer konnte nicht gelöscht werden: ${error}`;
+        }
+        return;
+    }
+    if (editingGuestRoomId === guestRoomId) {
+        resetGuestRoomForm();
+    }
+    await loadHouseData();
 }
 
 function pad2(value) {
@@ -807,6 +1219,11 @@ function showLaundryList() {
     loadLaundry();
 }
 
+function changeLaundryPage(direction) {
+    currentLaundryOffset = Math.max(0, currentLaundryOffset + direction * 10);
+    loadLaundry();
+}
+
 function formatDuration(minutes) {
     if (minutes < 60) {
         return `${minutes} min`;
@@ -830,6 +1247,7 @@ function updateLaundryFormUi() {
 function resetLaundryForm() {
     editingLaundryBookingId = null;
     const personSelect = getElement("laundry-person-select");
+    const machineSelect = getElement("laundry-machine-select");
     const dateInput = getElement("laundry-date");
     const startInput = getElement("laundry-start");
     const endInput = getElement("laundry-end");
@@ -837,6 +1255,9 @@ function resetLaundryForm() {
     syncPersonSelectors();
     if (dateInput) {
         dateInput.value = "";
+    }
+    if (machineSelect) {
+        machineSelect.value = "1";
     }
     if (startInput) {
         startInput.value = "";
@@ -857,12 +1278,16 @@ function editLaundryBooking(booking) {
     editingLaundryBookingId = booking.id;
     showLaundryAdd();
     const personSelect = getElement("laundry-person-select");
+    const machineSelect = getElement("laundry-machine-select");
     const dateInput = getElement("laundry-date");
     const startInput = getElement("laundry-start");
     const endInput = getElement("laundry-end");
     const status = getElement("laundry-add-status");
     if (personSelect) {
         personSelect.value = String(booking.person_id);
+    }
+    if (machineSelect) {
+        machineSelect.value = booking.machine;
     }
     if (dateInput) {
         dateInput.value = booking.date;
@@ -888,21 +1313,23 @@ function editLaundryBookingById(bookingId) {
 
 async function saveLaundryBooking() {
     const personSelect = getElement("laundry-person-select");
+    const machineSelect = getElement("laundry-machine-select");
     const dateInput = getElement("laundry-date");
     const startInput = getElement("laundry-start");
     const endInput = getElement("laundry-end");
     const status = getElement("laundry-add-status");
-    if (!personSelect || !dateInput || !startInput || !endInput || !status) {
+    if (!personSelect || !machineSelect || !dateInput || !startInput || !endInput || !status) {
         return;
     }
     const personId = personSelect.value;
+    const machine = machineSelect.value;
     const date = dateInput.value;
     const start = startInput.value;
     const end = endInput.value;
     status.innerText = "";
 
-    if (!personId || !date || !start || !end) {
-        status.innerText = "Bitte Person, Datum, Start- und Endzeit auswählen.";
+    if (!personId || !machine || !date || !start || !end) {
+        status.innerText = "Bitte Person, Waschmaschine, Datum, Start- und Endzeit auswählen.";
         return;
     }
 
@@ -913,6 +1340,7 @@ async function saveLaundryBooking() {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
                 person_id: Number(personId),
+                machine,
                 date,
                 start_time: start,
                 end_time: end,
@@ -953,30 +1381,35 @@ async function deleteLaundryBooking(bookingId) {
 async function loadLaundry() {
     const status = getElement("laundry-list-status");
     const tableBody = getOptionalElement("#laundry-table tbody");
-    if (!status || !tableBody) {
+    const prevButton = getElement("laundry-prev-button");
+    const nextButton = getElement("laundry-next-button");
+    if (!status || !tableBody || !prevButton || !nextButton) {
         return;
     }
     status.innerText = "";
     tableBody.innerHTML = "";
 
-    const response = await apiFetch("/api/laundry");
+    const response = await apiFetch(`/api/laundry/upcoming?offset=${currentLaundryOffset}&limit=10`);
     if (!response.ok) {
         status.innerText = "Wäschebuchungen konnten nicht geladen werden.";
         return;
     }
 
     const data = await response.json();
-    currentLaundryBookings = data;
-    if (!data.length) {
-        status.innerText = "Noch keine Buchungen.";
+    currentLaundryBookings = data.items;
+    prevButton.disabled = !data.has_previous;
+    nextButton.disabled = !data.has_next;
+    if (!data.items.length) {
+        status.innerText = "Keine Buchungen ab heute.";
         return;
     }
 
-    data.forEach((booking) => {
+    data.items.forEach((booking) => {
         const row = document.createElement("tr");
         row.innerHTML = `
             <td>${booking.person_name}</td>
             <td>${booking.date}</td>
+            <td>${booking.machine}</td>
             <td>${booking.start_time.slice(0, 5)}</td>
             <td>${booking.end_time.slice(0, 5)}</td>
             <td>${formatDuration(booking.duration_minutes)}</td>
@@ -1452,6 +1885,11 @@ function showGuestroomList() {
     loadGuestroomBookings();
 }
 
+function changeGuestroomPage(direction) {
+    currentGuestroomOffset = Math.max(0, currentGuestroomOffset + direction * 10);
+    loadGuestroomBookings();
+}
+
 function updateGuestroomFormUi() {
     const saveButton = getElement("guestroom-save-button");
     const cancelButton = getElement("guestroom-cancel-button");
@@ -1465,11 +1903,16 @@ function updateGuestroomFormUi() {
 
 function resetGuestroomForm() {
     editingGuestroomBookingId = null;
+    const roomSelect = getElement("guestroom-room-select");
     const guestInput = getElement("guestroom-guest");
     const startInput = getElement("guestroom-start");
     const endInput = getElement("guestroom-end");
     const status = getElement("guestroom-add-status");
+    const roomInfo = getElement("guestroom-room-info");
     syncPersonSelectors();
+    if (roomSelect) {
+        roomSelect.value = "";
+    }
     if (guestInput) {
         guestInput.value = "";
     }
@@ -1482,6 +1925,9 @@ function resetGuestroomForm() {
     if (status) {
         status.innerText = "";
     }
+    if (roomInfo) {
+        roomInfo.innerText = "";
+    }
     updateGuestroomFormUi();
 }
 
@@ -1489,12 +1935,17 @@ function editGuestroomBooking(booking) {
     editingGuestroomBookingId = booking.id;
     showGuestroomAdd();
     const personSelect = getElement("guestroom-person-select");
+    const roomSelect = getElement("guestroom-room-select");
     const guestInput = getElement("guestroom-guest");
     const startInput = getElement("guestroom-start");
     const endInput = getElement("guestroom-end");
     const status = getElement("guestroom-add-status");
     if (personSelect) {
         personSelect.value = String(booking.person_id);
+    }
+    renderGuestroomRoomOptions();
+    if (roomSelect) {
+        roomSelect.value = booking.guest_room_id ? String(booking.guest_room_id) : "";
     }
     if (guestInput) {
         guestInput.value = booking.guest_name;
@@ -1508,6 +1959,7 @@ function editGuestroomBooking(booking) {
     if (status) {
         status.innerText = "Buchung bearbeiten.";
     }
+    refreshGuestroomRoomInfo();
     updateGuestroomFormUi();
 }
 
@@ -1518,16 +1970,65 @@ function editGuestroomBookingById(bookingId) {
     }
 }
 
+async function refreshGuestroomRoomInfo() {
+    const personSelect = getElement("guestroom-person-select");
+    const roomSelect = getElement("guestroom-room-select");
+    const startInput = getElement("guestroom-start");
+    const endInput = getElement("guestroom-end");
+    const roomInfo = getElement("guestroom-room-info");
+    if (!personSelect || !roomSelect || !startInput || !endInput || !roomInfo) {
+        return;
+    }
+
+    if (!personSelect.value || !startInput.value || !endInput.value) {
+        roomInfo.innerText = "";
+        return;
+    }
+
+    const params = new URLSearchParams({
+        person_id: String(personSelect.value),
+        start_at: startInput.value,
+        end_at: endInput.value,
+    });
+    if (roomSelect.value) {
+        params.set("guest_room_id", roomSelect.value);
+    }
+    if (editingGuestroomBookingId) {
+        params.set("exclude_booking_id", String(editingGuestroomBookingId));
+    }
+
+    const response = await apiFetch(`/api/guestroom/conflicts?${params.toString()}`);
+    if (!response.ok) {
+        roomInfo.innerText = "";
+        return;
+    }
+
+    const conflicts = await response.json();
+    if (!conflicts.length) {
+        roomInfo.innerText = "";
+        return;
+    }
+
+    roomInfo.innerText = conflicts
+        .map((conflict) => (
+            `${conflict.room_name} ist bereits gebucht von ${conflict.responsible_name} `
+            + `(${formatDateTime(conflict.start_at)} bis ${formatDateTime(conflict.end_at)}).`
+        ))
+        .join(" ");
+}
+
 async function saveGuestroomBooking() {
     const personSelect = getElement("guestroom-person-select");
+    const roomSelect = getElement("guestroom-room-select");
     const guestInput = getElement("guestroom-guest");
     const startInput = getElement("guestroom-start");
     const endInput = getElement("guestroom-end");
     const status = getElement("guestroom-add-status");
-    if (!personSelect || !guestInput || !startInput || !endInput || !status) {
+    if (!personSelect || !roomSelect || !guestInput || !startInput || !endInput || !status) {
         return;
     }
     const personId = personSelect.value;
+    const guestRoomId = roomSelect.value;
     const guestName = guestInput.value.trim();
     const startAt = startInput.value;
     const endAt = endInput.value;
@@ -1545,6 +2046,7 @@ async function saveGuestroomBooking() {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
                 person_id: Number(personId),
+                guest_room_id: guestRoomId ? Number(guestRoomId) : null,
                 guest_name: guestName,
                 start_at: startAt,
                 end_at: endAt,
@@ -1585,30 +2087,35 @@ async function deleteGuestroomBooking(bookingId) {
 async function loadGuestroomBookings() {
     const status = getElement("guestroom-list-status");
     const tableBody = getOptionalElement("#guestroom-table tbody");
-    if (!status || !tableBody) {
+    const prevButton = getElement("guestroom-prev-button");
+    const nextButton = getElement("guestroom-next-button");
+    if (!status || !tableBody || !prevButton || !nextButton) {
         return;
     }
     status.innerText = "";
     tableBody.innerHTML = "";
 
-    const response = await apiFetch("/api/guestroom");
+    const response = await apiFetch(`/api/guestroom/upcoming?offset=${currentGuestroomOffset}&limit=10`);
     if (!response.ok) {
         status.innerText = "Gästebuchungen konnten nicht geladen werden.";
         return;
     }
 
     const data = await response.json();
-    currentGuestroomBookings = data;
-    if (!data.length) {
-        status.innerText = "Noch keine Buchungen.";
+    currentGuestroomBookings = data.items;
+    prevButton.disabled = !data.has_previous;
+    nextButton.disabled = !data.has_next;
+    if (!data.items.length) {
+        status.innerText = "Keine Buchungen ab heute.";
         return;
     }
 
-    data.forEach((booking) => {
+    data.items.forEach((booking) => {
         const row = document.createElement("tr");
         const durationDays = getDurationDays(booking.start_at, booking.end_at);
         row.innerHTML = `
             <td>${booking.responsible_name}</td>
+            <td>${booking.room_name}</td>
             <td>${booking.guest_name}</td>
             <td>${formatDateTime(booking.start_at)}</td>
             <td>${formatDateTime(booking.end_at)}</td>
@@ -1675,6 +2182,10 @@ function initHomePage() {
     setAuthVisibility(false);
     renderLivingGroups();
     renderPeople();
+    renderGuestRooms();
+    updateLivingGroupFormUi();
+    updatePersonFormUi();
+    updateGuestRoomFormUi();
     syncPersonSelectors();
 }
 
@@ -1685,6 +2196,17 @@ function initGuestroomPage() {
     if (!guestroomSection || !guestroomAdd || !guestroomList) {
         return;
     }
+    const personSelect = getElement("guestroom-person-select");
+    const roomSelect = getElement("guestroom-room-select");
+    const startInput = getElement("guestroom-start");
+    const endInput = getElement("guestroom-end");
+    personSelect?.addEventListener("change", () => {
+        renderGuestroomRoomOptions();
+        refreshGuestroomRoomInfo();
+    });
+    roomSelect?.addEventListener("change", refreshGuestroomRoomInfo);
+    startInput?.addEventListener("change", refreshGuestroomRoomInfo);
+    endInput?.addEventListener("change", refreshGuestroomRoomInfo);
     showGuestroomAdd();
 }
 

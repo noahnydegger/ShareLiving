@@ -5,7 +5,7 @@ from typing import List, Optional
 import services.laundry_service as laundry_service
 from services.people_service import get_person
 from data.house_context import get_current_house_id
-from schemas.laundry import LaundryBookingIn, LaundryBookingOut
+from schemas.laundry import LaundryBookingIn, LaundryBookingListOut, LaundryBookingOut
 
 router = APIRouter(
     prefix="/api/laundry",
@@ -27,6 +27,15 @@ def get_laundry_bookings(
     if person_id is not None and get_person(house_id, person_id) is None:
         return []
     return laundry_service.get_bookings(house_id=house_id, person_id=person_id)
+
+
+@router.get("/upcoming", response_model=LaundryBookingListOut)
+def get_upcoming_laundry_bookings(
+    offset: int = Query(default=0, ge=0),
+    limit: int = Query(default=10, ge=1, le=50),
+    house_id: int = Depends(get_current_house_id),
+):
+    return laundry_service.get_upcoming_bookings(house_id=house_id, limit=limit, offset=offset)
 
 
 @router.post("")
@@ -57,11 +66,12 @@ def book_laundry_slot(
         duration_minutes,
         booking.person_id,
         house_id,
+        booking.machine,
     )
     if not success:
         raise HTTPException(
             status_code=409,
-            detail="Slot already booked"
+            detail="Selected machine is already booked during this time"
         )
     return {"status": "ok"}
 
@@ -90,9 +100,10 @@ def update_laundry_booking(
         duration_minutes,
         booking.person_id,
         house_id,
+        booking.machine,
     )
     if not success:
-        raise HTTPException(status_code=409, detail="Slot already booked or booking missing")
+        raise HTTPException(status_code=409, detail="Selected machine is already booked during this time or booking is missing")
     return {"status": "ok"}
 
 

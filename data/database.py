@@ -185,6 +185,21 @@ def init_db():
                 ON people (house_id)
                 """
             )
+            cur.execute(
+                """
+                CREATE TABLE IF NOT EXISTS guest_rooms (
+                    id SERIAL PRIMARY KEY,
+                    house_id INTEGER NOT NULL REFERENCES houses(id),
+                    name TEXT NOT NULL
+                )
+                """
+            )
+            cur.execute(
+                """
+                CREATE UNIQUE INDEX IF NOT EXISTS guest_rooms_house_name_idx
+                ON guest_rooms (house_id, LOWER(name))
+                """
+            )
 
             # Users table
             cur.execute(
@@ -222,6 +237,12 @@ def init_db():
                 """
                 ALTER TABLE laundry_bookings
                 ADD COLUMN IF NOT EXISTS person_id INTEGER
+                """
+            )
+            cur.execute(
+                """
+                ALTER TABLE laundry_bookings
+                ADD COLUMN IF NOT EXISTS machine TEXT NOT NULL DEFAULT '1'
                 """
             )
             cur.execute(
@@ -283,6 +304,19 @@ def init_db():
                     END IF;
                 END
                 $$;
+                """
+            )
+            cur.execute(
+                """
+                ALTER TABLE laundry_bookings
+                DROP CONSTRAINT IF EXISTS laundry_bookings_machine_check
+                """
+            )
+            cur.execute(
+                """
+                ALTER TABLE laundry_bookings
+                ADD CONSTRAINT laundry_bookings_machine_check
+                CHECK (machine IN ('1', '2', '1 und 2'))
                 """
             )
 
@@ -430,7 +464,9 @@ def init_db():
                     house_id INTEGER NOT NULL REFERENCES houses(id),
                     responsible_user_id INTEGER NULL REFERENCES users(id),
                     person_id INTEGER NOT NULL REFERENCES people(id),
+                    guest_room_id INTEGER NULL REFERENCES guest_rooms(id),
                     guest_name TEXT NOT NULL,
+                    room_name TEXT NOT NULL DEFAULT 'Eigenes Zimmer',
                     start_at TIMESTAMP NOT NULL,
                     end_at TIMESTAMP NOT NULL,
                     duration_minutes INTEGER NOT NULL
@@ -447,6 +483,18 @@ def init_db():
                 """
                 ALTER TABLE guestroom_bookings
                 ADD COLUMN IF NOT EXISTS person_id INTEGER
+                """
+            )
+            cur.execute(
+                """
+                ALTER TABLE guestroom_bookings
+                ADD COLUMN IF NOT EXISTS guest_room_id INTEGER
+                """
+            )
+            cur.execute(
+                """
+                ALTER TABLE guestroom_bookings
+                ADD COLUMN IF NOT EXISTS room_name TEXT NOT NULL DEFAULT 'Eigenes Zimmer'
                 """
             )
             cur.execute(
@@ -505,6 +553,28 @@ def init_db():
                 """
                 CREATE INDEX IF NOT EXISTS guestroom_bookings_person_id_idx
                 ON guestroom_bookings (person_id)
+                """
+            )
+            cur.execute(
+                """
+                DO $$
+                BEGIN
+                    IF NOT EXISTS (
+                        SELECT 1 FROM pg_constraint
+                        WHERE conname = 'guestroom_bookings_guest_room_id_fkey'
+                    ) THEN
+                        ALTER TABLE guestroom_bookings
+                        ADD CONSTRAINT guestroom_bookings_guest_room_id_fkey
+                        FOREIGN KEY (guest_room_id) REFERENCES guest_rooms(id);
+                    END IF;
+                END
+                $$;
+                """
+            )
+            cur.execute(
+                """
+                CREATE INDEX IF NOT EXISTS guestroom_bookings_guest_room_id_idx
+                ON guestroom_bookings (guest_room_id)
                 """
             )
             cur.execute(

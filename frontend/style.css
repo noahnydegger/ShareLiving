@@ -243,6 +243,13 @@ ul {
     font-weight: 700;
 }
 
+.list-pagination {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin-top: 1rem;
+}
+
 .overview-toolbar {
     display: flex;
     flex-wrap: wrap;

@@ -55,7 +55,9 @@
             <div class="panel">
                 <h2>Wohngruppen</h2>
                 <input id="living-group-name" placeholder="Name der Wohngruppe">
-                <button onclick="createLivingGroup()">Wohngruppe hinzufügen</button>
+                <button id="living-group-save-button" onclick="saveLivingGroup()">Wohngruppe hinzufügen</button>
+                <button id="living-group-cancel-button" type="button" style="display:none" onclick="resetLivingGroupForm()">Abbrechen</button>
+                <button id="living-group-edit-toggle" type="button" onclick="toggleLivingGroupEditMode()">Edit Wohngruppen</button>
                 <p id="living-group-status"></p>
                 <ul id="living-groups-list"></ul>
             </div>
@@ -66,9 +68,21 @@
                 <select id="person-living-group">
                     <option value="">Keine Wohngruppe</option>
                 </select>
-                <button onclick="createPerson()">Person hinzufügen</button>
+                <button id="person-save-button" onclick="savePerson()">Person hinzufügen</button>
+                <button id="person-cancel-button" type="button" style="display:none" onclick="resetPersonForm()">Abbrechen</button>
+                <button id="person-edit-toggle" type="button" onclick="togglePersonEditMode()">Edit Personen</button>
                 <p id="person-status"></p>
                 <ul id="people-list"></ul>
+            </div>
+
+            <div class="panel">
+                <h2>Gästezimmer</h2>
+                <input id="guest-room-name" placeholder="Name des Gästezimmers">
+                <button id="guest-room-save-button" onclick="saveGuestRoom()">Gästezimmer hinzufügen</button>
+                <button id="guest-room-cancel-button" type="button" style="display:none" onclick="resetGuestRoomForm()">Abbrechen</button>
+                <button id="guest-room-edit-toggle" type="button" onclick="toggleGuestRoomEditMode()">Edit Gästezimmer</button>
+                <p id="guest-room-status"></p>
+                <ul id="guest-rooms-list"></ul>
             </div>
         </div>
     </div>
@@ -127,6 +141,12 @@
     <div id="laundry-add" style="display:none">
         <label for="laundry-person-select">Person</label>
         <select id="laundry-person-select"></select>
+        <label for="laundry-machine-select">Waschmaschine</label>
+        <select id="laundry-machine-select">
+            <option value="1">1</option>
+            <option value="2">2</option>
+            <option value="1 und 2">1 und 2</option>
+        </select>
         <input id="laundry-date" type="date">
         <input id="laundry-start" type="time">
         <input id="laundry-end" type="time">
@@ -141,6 +161,7 @@
                 <tr>
                     <th>Person</th>
                     <th>Datum</th>
+                    <th>Waschmaschine</th>
                     <th>Start</th>
                     <th>Ende</th>
                     <th>Dauer</th>
@@ -149,6 +170,10 @@
             </thead>
             <tbody></tbody>
         </table>
+        <div class="list-pagination">
+            <button type="button" id="laundry-prev-button" onclick="changeLaundryPage(-1)">Vorherige 10</button>
+            <button type="button" id="laundry-next-button" onclick="changeLaundryPage(1)">Nächste 10</button>
+        </div>
         <p id="laundry-list-status"></p>
     </div>
 </section>
@@ -224,9 +249,12 @@
     <div id="guestroom-add" style="display:none">
         <label for="guestroom-person-select">Verantwortliche Person</label>
         <select id="guestroom-person-select"></select>
+        <label for="guestroom-room-select">Zimmer</label>
+        <select id="guestroom-room-select"></select>
         <input id="guestroom-guest" placeholder="Name des Gastes">
         <input id="guestroom-start" type="datetime-local">
         <input id="guestroom-end" type="datetime-local">
+        <p id="guestroom-room-info"></p>
         <button id="guestroom-save-button" onclick="saveGuestroomBooking()">Buchung speichern</button>
         <button id="guestroom-cancel-button" type="button" style="display:none" onclick="resetGuestroomForm()">Abbrechen</button>
         <p id="guestroom-add-status"></p>
@@ -237,6 +265,7 @@
             <thead>
                 <tr>
                     <th>Verantwortlich</th>
+                    <th>Zimmer</th>
                     <th>Gast</th>
                     <th>Start</th>
                     <th>Ende</th>
@@ -246,6 +275,10 @@
             </thead>
             <tbody></tbody>
         </table>
+        <div class="list-pagination">
+            <button type="button" id="guestroom-prev-button" onclick="changeGuestroomPage(-1)">Vorherige 10</button>
+            <button type="button" id="guestroom-next-button" onclick="changeGuestroomPage(1)">Nächste 10</button>
+        </div>
         <p id="guestroom-list-status"></p>
     </div>
 </section>

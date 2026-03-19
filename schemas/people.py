@@ -13,6 +13,16 @@ class LivingGroupOut(BaseModel):
     name: str
 
 
+class GuestRoomCreateIn(BaseModel):
+    name: str
+
+
+class GuestRoomOut(BaseModel):
+    id: int
+    house_id: int
+    name: str
+
+
 class PersonCreateIn(BaseModel):
     name: str
     living_group_id: Optional[int] = None
