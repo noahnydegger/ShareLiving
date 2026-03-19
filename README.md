@@ -114,6 +114,8 @@ Create a `.env` file with at least:
 DATABASE_URL=postgresql+asyncpg://USER:PASSWORD@HOST/shareliving
 SYNC_DATABASE_URL=postgresql://USER:PASSWORD@HOST/shareliving
 HOUSE_TOKEN_SECRET=replace-this-in-production
+HOUSE_TOKEN_TTL_SECONDS=604800
+ALLOWED_ORIGINS=http://127.0.0.1:8000,http://localhost:8000
 ```
 
 Notes:
@@ -121,6 +123,8 @@ Notes:
 - `DATABASE_URL` is used for async SQLAlchemy setup when available.
 - `SYNC_DATABASE_URL` is used by the current synchronous psycopg queries.
 - `HOUSE_TOKEN_SECRET` is used to sign the house session token.
+- `HOUSE_TOKEN_TTL_SECONDS` controls how long a house token remains valid.
+- `ALLOWED_ORIGINS` is a comma-separated list of browser origins allowed by CORS.
 
 ## Local Development
 
@@ -198,6 +202,8 @@ Before deploying, set production secrets for:
 
 - database connection strings
 - `HOUSE_TOKEN_SECRET`
+- `HOUSE_TOKEN_TTL_SECONDS`
+- `ALLOWED_ORIGINS`
 
 ## Current Limitations
 

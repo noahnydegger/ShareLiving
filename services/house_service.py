@@ -4,6 +4,7 @@ import hmac
 import json
 import os
 import secrets
+import time
 from typing import Optional
 
 from data.database import get_connection, get_house_by_id
@@ -11,6 +12,7 @@ from data.database import get_connection, get_house_by_id
 
 TOKEN_SECRET = os.getenv("HOUSE_TOKEN_SECRET", "shareliving-dev-secret")
 TOKEN_VERSION = 1
+HOUSE_TOKEN_TTL_SECONDS = int(os.getenv("HOUSE_TOKEN_TTL_SECONDS", str(7 * 24 * 60 * 60)))
 
 
 def _urlsafe_encode(value: bytes) -> str:
@@ -100,7 +102,7 @@ def create_house(name: str, password: str) -> dict:
                 """
                 INSERT INTO houses (slug, name, password_hash)
                 VALUES (%s, %s, %s)
-                RETURNING id, slug, name
+                RETURNING id, slug, name, session_version
                 """,
                 (
                     _build_unique_slug(cleaned_name),
@@ -122,7 +124,7 @@ def login_house(name: str, password: str) -> Optional[dict]:
         with con.cursor() as cur:
             cur.execute(
                 """
-                SELECT id, slug, name, password_hash
+                SELECT id, slug, name, password_hash, session_version
                 FROM houses
                 WHERE LOWER(name) = LOWER(%s)
                 """,
@@ -138,10 +140,14 @@ def login_house(name: str, password: str) -> Optional[dict]:
 
 
 def create_house_token(house: dict) -> str:
+    now = int(time.time())
     payload = {
         "v": TOKEN_VERSION,
         "house_id": house["id"],
         "house_name": house["name"],
+        "session_version": int(house.get("session_version", 1)),
+        "iat": now,
+        "exp": now + HOUSE_TOKEN_TTL_SECONDS,
     }
     payload_json = json.dumps(payload, separators=(",", ":"), sort_keys=True).encode("utf-8")
     payload_part = _urlsafe_encode(payload_json)
@@ -177,12 +183,23 @@ def parse_house_token(token: str) -> Optional[dict]:
     except Exception:
         return None
 
+    if payload.get("v") != TOKEN_VERSION:
+        return None
+
     house_id = payload.get("house_id")
+    expires_at = payload.get("exp")
+    session_version = payload.get("session_version")
     if not isinstance(house_id, int):
+        return None
+    if not isinstance(expires_at, int) or expires_at <= int(time.time()):
+        return None
+    if not isinstance(session_version, int):
         return None
 
     house = get_house_by_id(house_id)
     if not house:
+        return None
+    if int(house.get("session_version", 1)) != session_version:
         return None
 
     return {
@@ -190,3 +207,23 @@ def parse_house_token(token: str) -> Optional[dict]:
         "slug": house["slug"],
         "name": house["name"],
     }
+
+
+def rotate_house_session_version(house_id: int) -> int:
+    with get_connection() as con:
+        with con.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE houses
+                SET session_version = session_version + 1
+                WHERE id = %s
+                RETURNING session_version
+                """,
+                (house_id,),
+            )
+            row = cur.fetchone()
+        con.commit()
+
+    if not row:
+        raise ValueError("House not found")
+    return row["session_version"]

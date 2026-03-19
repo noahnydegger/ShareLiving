@@ -3,7 +3,7 @@ from datetime import datetime
 
 
 class GuestroomBookingIn(BaseModel):
-    responsible_name: str
+    person_id: int
     guest_name: str
     start_at: datetime
     end_at: datetime
@@ -11,6 +11,7 @@ class GuestroomBookingIn(BaseModel):
 
 class GuestroomBookingOut(BaseModel):
     id: int
+    person_id: int
     responsible_name: str
     guest_name: str
     start_at: datetime

@@ -10,13 +10,14 @@ def get_bookings(house_id: int) -> List[Dict]:
             cur.execute(
                 """
                 SELECT gb.id,
-                       u.username AS responsible_name,
+                       p.id AS person_id,
+                       p.name AS responsible_name,
                        gb.guest_name,
                        gb.start_at,
                        gb.end_at,
                        gb.duration_minutes
                 FROM guestroom_bookings gb
-                JOIN users u ON gb.responsible_user_id = u.id
+                JOIN people p ON gb.person_id = p.id
                 WHERE gb.house_id = %s
                 ORDER BY gb.start_at
                 """,
@@ -27,6 +28,7 @@ def get_bookings(house_id: int) -> List[Dict]:
     return [
         {
             "id": row["id"],
+            "person_id": row["person_id"],
             "responsible_name": row["responsible_name"],
             "guest_name": row["guest_name"],
             "start_at": row["start_at"],
@@ -39,7 +41,7 @@ def get_bookings(house_id: int) -> List[Dict]:
 
 def add_booking(
     house_id: int,
-    responsible_user_id: int,
+    person_id: int,
     guest_name: str,
     start_at: datetime,
     end_at: datetime,
@@ -52,7 +54,7 @@ def add_booking(
                     """
                     INSERT INTO guestroom_bookings (
                         house_id,
-                        responsible_user_id,
+                        person_id,
                         guest_name,
                         start_at,
                         end_at,
@@ -62,7 +64,7 @@ def add_booking(
                     """,
                     (
                         house_id,
-                        responsible_user_id,
+                        person_id,
                         guest_name,
                         start_at,
                         end_at,

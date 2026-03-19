@@ -61,7 +61,7 @@ def get_house_by_id(house_id: int) -> Optional[dict]:
         with con.cursor() as cur:
             cur.execute(
                 """
-                SELECT id, slug, name, password_hash
+                SELECT id, slug, name, password_hash, session_version
                 FROM houses
                 WHERE id = %s
                 """,
@@ -93,7 +93,8 @@ def init_db():
                     id INTEGER PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
                     slug TEXT UNIQUE NOT NULL,
                     name TEXT,
-                    password_hash TEXT NULL
+                    password_hash TEXT NULL,
+                    session_version INTEGER NOT NULL DEFAULT 1
                 )
                 """
             )
@@ -105,9 +106,22 @@ def init_db():
             )
             cur.execute(
                 """
+                ALTER TABLE houses
+                ADD COLUMN IF NOT EXISTS session_version INTEGER NOT NULL DEFAULT 1
+                """
+            )
+            cur.execute(
+                """
                 INSERT INTO houses (slug, name)
                 VALUES ('default', 'default')
                 ON CONFLICT (slug) DO NOTHING
+                """
+            )
+            cur.execute(
+                """
+                UPDATE houses
+                SET session_version = 1
+                WHERE session_version IS NULL
                 """
             )
             cur.execute(
@@ -414,7 +428,8 @@ def init_db():
                 CREATE TABLE IF NOT EXISTS guestroom_bookings (
                     id SERIAL PRIMARY KEY,
                     house_id INTEGER NOT NULL REFERENCES houses(id),
-                    responsible_user_id INTEGER NOT NULL REFERENCES users(id),
+                    responsible_user_id INTEGER NULL REFERENCES users(id),
+                    person_id INTEGER NOT NULL REFERENCES people(id),
                     guest_name TEXT NOT NULL,
                     start_at TIMESTAMP NOT NULL,
                     end_at TIMESTAMP NOT NULL,
@@ -426,6 +441,12 @@ def init_db():
                 """
                 ALTER TABLE guestroom_bookings
                 ADD COLUMN IF NOT EXISTS house_id INTEGER
+                """
+            )
+            cur.execute(
+                """
+                ALTER TABLE guestroom_bookings
+                ADD COLUMN IF NOT EXISTS person_id INTEGER
                 """
             )
             cur.execute(
@@ -466,12 +487,38 @@ def init_db():
             )
             cur.execute(
                 """
+                DO $$
+                BEGIN
+                    IF NOT EXISTS (
+                        SELECT 1 FROM pg_constraint
+                        WHERE conname = 'guestroom_bookings_person_id_fkey'
+                    ) THEN
+                        ALTER TABLE guestroom_bookings
+                        ADD CONSTRAINT guestroom_bookings_person_id_fkey
+                        FOREIGN KEY (person_id) REFERENCES people(id);
+                    END IF;
+                END
+                $$;
+                """
+            )
+            cur.execute(
+                """
+                CREATE INDEX IF NOT EXISTS guestroom_bookings_person_id_idx
+                ON guestroom_bookings (person_id)
+                """
+            )
+            cur.execute(
+                """
                 INSERT INTO people (house_id, name)
                 SELECT DISTINCT source.house_id, source.username
                 FROM (
                     SELECT lb.house_id, u.username
                     FROM laundry_bookings lb
                     JOIN users u ON lb.user_id = u.id
+                    UNION
+                    SELECT gb.house_id, u.username
+                    FROM guestroom_bookings gb
+                    JOIN users u ON gb.responsible_user_id = u.id
                 ) AS source
                 WHERE source.username IS NOT NULL
                 ON CONFLICT DO NOTHING
@@ -486,5 +533,28 @@ def init_db():
                   AND p.house_id = lb.house_id
                   AND LOWER(p.name) = LOWER(u.username)
                   AND lb.person_id IS NULL
+                """
+            )
+            cur.execute(
+                """
+                UPDATE guestroom_bookings AS gb
+                SET person_id = p.id
+                FROM users AS u, people AS p
+                WHERE gb.responsible_user_id = u.id
+                  AND p.house_id = gb.house_id
+                  AND LOWER(p.name) = LOWER(u.username)
+                  AND gb.person_id IS NULL
+                """
+            )
+            cur.execute(
+                """
+                ALTER TABLE guestroom_bookings
+                ALTER COLUMN person_id SET NOT NULL
+                """
+            )
+            cur.execute(
+                """
+                ALTER TABLE guestroom_bookings
+                ALTER COLUMN responsible_user_id DROP NOT NULL
                 """
             )

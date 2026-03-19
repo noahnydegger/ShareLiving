@@ -1,3 +1,5 @@
+import os
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -9,13 +11,24 @@ from data.database import init_db
 app = FastAPI(title="ShareLiving API")
 
 
+def _get_allowed_origins() -> list[str]:
+    configured = os.getenv("ALLOWED_ORIGINS", "").strip()
+    if configured:
+        return [origin.strip() for origin in configured.split(",") if origin.strip()]
+
+    return [
+        "http://127.0.0.1:8000",
+        "http://localhost:8000",
+    ]
+
+
 @app.on_event("startup")
 def on_startup():
     init_db()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_get_allowed_origins(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

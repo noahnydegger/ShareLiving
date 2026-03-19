@@ -1216,11 +1216,6 @@ function showGuestroomList() {
     loadGuestroomBookings();
 }
 
-function getPersonNameById(personId) {
-    const person = currentPeople.find((entry) => String(entry.id) === String(personId));
-    return person ? person.name : "";
-}
-
 async function addGuestroomBooking() {
     const personSelect = getElement("guestroom-person-select");
     const guestInput = getElement("guestroom-guest");
@@ -1245,7 +1240,7 @@ async function addGuestroomBooking() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-            responsible_name: getPersonNameById(personId),
+            person_id: Number(personId),
             guest_name: guestName,
             start_at: startAt,
             end_at: endAt,

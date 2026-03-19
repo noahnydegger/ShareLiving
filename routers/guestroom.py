@@ -1,4 +1,3 @@
-from datetime import datetime
 from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -6,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException
 import services.guestroom_service as guestroom_service
 from data.house_context import get_current_house_id
 from schemas.guestroom import GuestroomBookingIn, GuestroomBookingOut
-from services.user_service import get_or_create_user_id
+from services.people_service import get_person
 
 router = APIRouter(
     prefix="/api/guestroom",
@@ -26,10 +25,12 @@ def add_guestroom_booking(
     booking: GuestroomBookingIn,
     house_id: int = Depends(get_current_house_id),
 ):
-    if not booking.responsible_name.strip():
-        raise HTTPException(status_code=400, detail="Responsible name is required")
     if not booking.guest_name.strip():
         raise HTTPException(status_code=400, detail="Guest name is required")
+
+    person = get_person(house_id, booking.person_id)
+    if person is None:
+        raise HTTPException(status_code=400, detail="Person does not belong to this house")
 
     if booking.end_at <= booking.start_at:
         raise HTTPException(
@@ -43,7 +44,7 @@ def add_guestroom_booking(
 
     success = guestroom_service.add_booking(
         house_id=house_id,
-        responsible_user_id=get_or_create_user_id(booking.responsible_name),
+        person_id=booking.person_id,
         guest_name=booking.guest_name,
         start_at=booking.start_at,
         end_at=booking.end_at,
