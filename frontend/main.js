@@ -11,6 +11,10 @@ let currentOverviewView = "week";
 let currentOverviewDate = getMonday(new Date());
 let currentOverviewEvents = [];
 let currentFoodWeekEntries = [];
+let editingLaundryBookingId = null;
+let editingGuestroomBookingId = null;
+let currentLaundryBookings = [];
+let currentGuestroomBookings = [];
 
 function getElement(id) {
     return document.getElementById(id);
@@ -789,6 +793,12 @@ function showLaundryAdd() {
     setElementDisplay("laundry-add", "block");
     setElementDisplay("laundry-list", "none");
     syncPersonSelectors();
+    updateLaundryFormUi();
+}
+
+function startNewLaundryBooking() {
+    resetLaundryForm();
+    showLaundryAdd();
 }
 
 function showLaundryList() {
@@ -806,7 +816,77 @@ function formatDuration(minutes) {
     return remainder === 0 ? `${hours} h` : `${hours} h ${remainder} min`;
 }
 
-async function addLaundryBooking() {
+function updateLaundryFormUi() {
+    const saveButton = getElement("laundry-save-button");
+    const cancelButton = getElement("laundry-cancel-button");
+    if (saveButton) {
+        saveButton.innerText = editingLaundryBookingId ? "Änderungen speichern" : "Buchung speichern";
+    }
+    if (cancelButton) {
+        cancelButton.style.display = editingLaundryBookingId ? "inline-block" : "none";
+    }
+}
+
+function resetLaundryForm() {
+    editingLaundryBookingId = null;
+    const personSelect = getElement("laundry-person-select");
+    const dateInput = getElement("laundry-date");
+    const startInput = getElement("laundry-start");
+    const endInput = getElement("laundry-end");
+    const status = getElement("laundry-add-status");
+    syncPersonSelectors();
+    if (dateInput) {
+        dateInput.value = "";
+    }
+    if (startInput) {
+        startInput.value = "";
+    }
+    if (endInput) {
+        endInput.value = "";
+    }
+    if (status) {
+        status.innerText = "";
+    }
+    if (personSelect && !personSelect.value && currentPeople.length) {
+        personSelect.value = String(currentPeople[0].id);
+    }
+    updateLaundryFormUi();
+}
+
+function editLaundryBooking(booking) {
+    editingLaundryBookingId = booking.id;
+    showLaundryAdd();
+    const personSelect = getElement("laundry-person-select");
+    const dateInput = getElement("laundry-date");
+    const startInput = getElement("laundry-start");
+    const endInput = getElement("laundry-end");
+    const status = getElement("laundry-add-status");
+    if (personSelect) {
+        personSelect.value = String(booking.person_id);
+    }
+    if (dateInput) {
+        dateInput.value = booking.date;
+    }
+    if (startInput) {
+        startInput.value = booking.start_time.slice(0, 5);
+    }
+    if (endInput) {
+        endInput.value = booking.end_time.slice(0, 5);
+    }
+    if (status) {
+        status.innerText = "Buchung bearbeiten.";
+    }
+    updateLaundryFormUi();
+}
+
+function editLaundryBookingById(bookingId) {
+    const booking = currentLaundryBookings.find((entry) => entry.id === bookingId);
+    if (booking) {
+        editLaundryBooking(booking);
+    }
+}
+
+async function saveLaundryBooking() {
     const personSelect = getElement("laundry-person-select");
     const dateInput = getElement("laundry-date");
     const startInput = getElement("laundry-start");
@@ -826,16 +906,19 @@ async function addLaundryBooking() {
         return;
     }
 
-    const response = await apiFetch("/api/laundry", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-            person_id: Number(personId),
-            date,
-            start_time: start,
-            end_time: end,
-        }),
-    });
+    const response = await apiFetch(
+        editingLaundryBookingId ? `/api/laundry/${editingLaundryBookingId}` : "/api/laundry",
+        {
+            method: editingLaundryBookingId ? "PUT" : "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                person_id: Number(personId),
+                date,
+                start_time: start,
+                end_time: end,
+            }),
+        },
+    );
 
     if (!response.ok) {
         const error = await response.text();
@@ -843,8 +926,28 @@ async function addLaundryBooking() {
         return;
     }
 
-    status.innerText = "Buchung gespeichert.";
+    status.innerText = editingLaundryBookingId ? "Buchung aktualisiert." : "Buchung gespeichert.";
+    resetLaundryForm();
     showLaundryList();
+}
+
+async function deleteLaundryBooking(bookingId) {
+    const status = getElement("laundry-list-status");
+    if (!window.confirm("Wäschebuchung wirklich löschen?")) {
+        return;
+    }
+    const response = await apiFetch(`/api/laundry/${bookingId}`, { method: "DELETE" });
+    if (!response.ok) {
+        const error = await response.text();
+        if (status) {
+            status.innerText = `Buchung konnte nicht gelöscht werden: ${error}`;
+        }
+        return;
+    }
+    if (editingLaundryBookingId === bookingId) {
+        resetLaundryForm();
+    }
+    loadLaundry();
 }
 
 async function loadLaundry() {
@@ -863,6 +966,7 @@ async function loadLaundry() {
     }
 
     const data = await response.json();
+    currentLaundryBookings = data;
     if (!data.length) {
         status.innerText = "Noch keine Buchungen.";
         return;
@@ -876,6 +980,10 @@ async function loadLaundry() {
             <td>${booking.start_time.slice(0, 5)}</td>
             <td>${booking.end_time.slice(0, 5)}</td>
             <td>${formatDuration(booking.duration_minutes)}</td>
+            <td>
+                <button type="button" onclick="editLaundryBookingById(${booking.id})">Bearbeiten</button>
+                <button type="button" onclick="deleteLaundryBooking(${booking.id})">Löschen</button>
+            </td>
         `;
         tableBody.appendChild(row);
     });
@@ -1330,6 +1438,12 @@ function showGuestroomAdd() {
     setElementDisplay("guestroom-add", "block");
     setElementDisplay("guestroom-list", "none");
     syncPersonSelectors();
+    updateGuestroomFormUi();
+}
+
+function startNewGuestroomBooking() {
+    resetGuestroomForm();
+    showGuestroomAdd();
 }
 
 function showGuestroomList() {
@@ -1338,7 +1452,73 @@ function showGuestroomList() {
     loadGuestroomBookings();
 }
 
-async function addGuestroomBooking() {
+function updateGuestroomFormUi() {
+    const saveButton = getElement("guestroom-save-button");
+    const cancelButton = getElement("guestroom-cancel-button");
+    if (saveButton) {
+        saveButton.innerText = editingGuestroomBookingId ? "Änderungen speichern" : "Buchung speichern";
+    }
+    if (cancelButton) {
+        cancelButton.style.display = editingGuestroomBookingId ? "inline-block" : "none";
+    }
+}
+
+function resetGuestroomForm() {
+    editingGuestroomBookingId = null;
+    const guestInput = getElement("guestroom-guest");
+    const startInput = getElement("guestroom-start");
+    const endInput = getElement("guestroom-end");
+    const status = getElement("guestroom-add-status");
+    syncPersonSelectors();
+    if (guestInput) {
+        guestInput.value = "";
+    }
+    if (startInput) {
+        startInput.value = "";
+    }
+    if (endInput) {
+        endInput.value = "";
+    }
+    if (status) {
+        status.innerText = "";
+    }
+    updateGuestroomFormUi();
+}
+
+function editGuestroomBooking(booking) {
+    editingGuestroomBookingId = booking.id;
+    showGuestroomAdd();
+    const personSelect = getElement("guestroom-person-select");
+    const guestInput = getElement("guestroom-guest");
+    const startInput = getElement("guestroom-start");
+    const endInput = getElement("guestroom-end");
+    const status = getElement("guestroom-add-status");
+    if (personSelect) {
+        personSelect.value = String(booking.person_id);
+    }
+    if (guestInput) {
+        guestInput.value = booking.guest_name;
+    }
+    if (startInput) {
+        startInput.value = booking.start_at.slice(0, 16);
+    }
+    if (endInput) {
+        endInput.value = booking.end_at.slice(0, 16);
+    }
+    if (status) {
+        status.innerText = "Buchung bearbeiten.";
+    }
+    updateGuestroomFormUi();
+}
+
+function editGuestroomBookingById(bookingId) {
+    const booking = currentGuestroomBookings.find((entry) => entry.id === bookingId);
+    if (booking) {
+        editGuestroomBooking(booking);
+    }
+}
+
+async function saveGuestroomBooking() {
     const personSelect = getElement("guestroom-person-select");
     const guestInput = getElement("guestroom-guest");
     const startInput = getElement("guestroom-start");
@@ -1358,16 +1538,19 @@ async function addGuestroomBooking() {
         return;
     }
 
-    const response = await apiFetch("/api/guestroom", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-            person_id: Number(personId),
-            guest_name: guestName,
-            start_at: startAt,
-            end_at: endAt,
-        }),
-    });
+    const response = await apiFetch(
+        editingGuestroomBookingId ? `/api/guestroom/${editingGuestroomBookingId}` : "/api/guestroom",
+        {
+            method: editingGuestroomBookingId ? "PUT" : "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                person_id: Number(personId),
+                guest_name: guestName,
+                start_at: startAt,
+                end_at: endAt,
+            }),
+        },
+    );
 
     if (!response.ok) {
         const error = await response.text();
@@ -1375,8 +1558,28 @@ async function addGuestroomBooking() {
         return;
     }
 
-    status.innerText = "Buchung gespeichert.";
+    status.innerText = editingGuestroomBookingId ? "Buchung aktualisiert." : "Buchung gespeichert.";
+    resetGuestroomForm();
     showGuestroomList();
+}
+
+async function deleteGuestroomBooking(bookingId) {
+    const status = getElement("guestroom-list-status");
+    if (!window.confirm("Gästebuchung wirklich löschen?")) {
+        return;
+    }
+    const response = await apiFetch(`/api/guestroom/${bookingId}`, { method: "DELETE" });
+    if (!response.ok) {
+        const error = await response.text();
+        if (status) {
+            status.innerText = `Buchung konnte nicht gelöscht werden: ${error}`;
+        }
+        return;
+    }
+    if (editingGuestroomBookingId === bookingId) {
+        resetGuestroomForm();
+    }
+    loadGuestroomBookings();
 }
 
 async function loadGuestroomBookings() {
@@ -1395,6 +1598,7 @@ async function loadGuestroomBookings() {
     }
 
     const data = await response.json();
+    currentGuestroomBookings = data;
     if (!data.length) {
         status.innerText = "Noch keine Buchungen.";
         return;
@@ -1409,6 +1613,10 @@ async function loadGuestroomBookings() {
             <td>${formatDateTime(booking.start_at)}</td>
             <td>${formatDateTime(booking.end_at)}</td>
             <td>${durationDays} ${durationDays === 1 ? "Tag" : "Tage"}</td>
+            <td>
+                <button type="button" onclick="editGuestroomBookingById(${booking.id})">Bearbeiten</button>
+                <button type="button" onclick="deleteGuestroomBooking(${booking.id})">Löschen</button>
+            </td>
         `;
         tableBody.appendChild(row);
     });

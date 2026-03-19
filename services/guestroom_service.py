@@ -74,3 +74,56 @@ def add_booking(
         return True
     except Exception:
         return False
+
+
+def update_booking(
+    booking_id: int,
+    house_id: int,
+    person_id: int,
+    guest_name: str,
+    start_at: datetime,
+    end_at: datetime,
+    duration_minutes: int,
+) -> bool:
+    try:
+        with get_connection() as con:
+            with con.cursor() as cur:
+                cur.execute(
+                    """
+                    UPDATE guestroom_bookings
+                    SET person_id = %s,
+                        guest_name = %s,
+                        start_at = %s,
+                        end_at = %s,
+                        duration_minutes = %s
+                    WHERE id = %s AND house_id = %s
+                    """,
+                    (
+                        person_id,
+                        guest_name,
+                        start_at,
+                        end_at,
+                        duration_minutes,
+                        booking_id,
+                        house_id,
+                    ),
+                )
+                updated = cur.rowcount
+        return updated > 0
+    except Exception:
+        return False
+
+
+def delete_booking(booking_id: int, house_id: int) -> bool:
+    with get_connection() as con:
+        with con.cursor() as cur:
+            cur.execute(
+                """
+                DELETE FROM guestroom_bookings
+                WHERE id = %s AND house_id = %s
+                """,
+                (booking_id, house_id),
+            )
+            deleted = cur.rowcount
+        con.commit()
+    return deleted > 0

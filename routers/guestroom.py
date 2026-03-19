@@ -54,3 +54,45 @@ def add_guestroom_booking(
         raise HTTPException(status_code=500, detail="Failed to save booking")
 
     return {"status": "ok"}
+
+
+@router.put("/{booking_id}")
+def update_guestroom_booking(
+    booking_id: int,
+    booking: GuestroomBookingIn,
+    house_id: int = Depends(get_current_house_id),
+):
+    if not booking.guest_name.strip():
+        raise HTTPException(status_code=400, detail="Guest name is required")
+
+    person = get_person(house_id, booking.person_id)
+    if person is None:
+        raise HTTPException(status_code=400, detail="Person does not belong to this house")
+
+    if booking.end_at <= booking.start_at:
+        raise HTTPException(status_code=400, detail="End time must be after start time")
+
+    duration_minutes = int((booking.end_at - booking.start_at).total_seconds() / 60)
+    success = guestroom_service.update_booking(
+        booking_id=booking_id,
+        house_id=house_id,
+        person_id=booking.person_id,
+        guest_name=booking.guest_name,
+        start_at=booking.start_at,
+        end_at=booking.end_at,
+        duration_minutes=duration_minutes,
+    )
+    if not success:
+        raise HTTPException(status_code=404, detail="Booking not found or could not be updated")
+    return {"status": "ok"}
+
+
+@router.delete("/{booking_id}")
+def delete_guestroom_booking(
+    booking_id: int,
+    house_id: int = Depends(get_current_house_id),
+):
+    deleted = guestroom_service.delete_booking(booking_id, house_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Booking not found")
+    return {"status": "ok"}

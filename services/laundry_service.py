@@ -15,7 +15,7 @@ def get_bookings(house_id: int, person_id: Optional[int] = None) -> List[Dict]:
             if person_id is None:
                 cur.execute(
                     """
-                    SELECT lb.id, lb.date, lb.start_time, lb.end_time, lb.duration_minutes,
+                    SELECT lb.id, lb.person_id, lb.date, lb.start_time, lb.end_time, lb.duration_minutes,
                            COALESCE(p.name, u.username) AS person_name
                     FROM laundry_bookings lb
                     LEFT JOIN people p ON lb.person_id = p.id
@@ -28,7 +28,7 @@ def get_bookings(house_id: int, person_id: Optional[int] = None) -> List[Dict]:
             else:
                 cur.execute(
                     """
-                    SELECT lb.id, lb.date, lb.start_time, lb.end_time, lb.duration_minutes,
+                    SELECT lb.id, lb.person_id, lb.date, lb.start_time, lb.end_time, lb.duration_minutes,
                            COALESCE(p.name, u.username) AS person_name
                     FROM laundry_bookings lb
                     LEFT JOIN people p ON lb.person_id = p.id
@@ -43,6 +43,7 @@ def get_bookings(house_id: int, person_id: Optional[int] = None) -> List[Dict]:
     return [
         {
             "id": row["id"],
+            "person_id": row["person_id"],
             "date": row["date"],
             "person_name": row["person_name"],
             "start_time": row["start_time"],
@@ -93,3 +94,58 @@ def book_slot(
     except Exception:
         # UNIQUE(date, slot) violation → slot already booked
         return False
+
+
+def update_booking(
+    booking_id: int,
+    date_: date,
+    start_time: time,
+    end_time: time,
+    duration_minutes: int,
+    person_id: int,
+    house_id: int,
+) -> bool:
+    try:
+        with get_connection() as con:
+            with con.cursor() as cur:
+                cur.execute(
+                    """
+                    UPDATE laundry_bookings
+                    SET date = %s,
+                        slot = %s,
+                        start_time = %s,
+                        end_time = %s,
+                        duration_minutes = %s,
+                        person_id = %s
+                    WHERE id = %s AND house_id = %s
+                    """,
+                    (
+                        date_,
+                        f"{start_time}-{end_time}",
+                        start_time,
+                        end_time,
+                        duration_minutes,
+                        person_id,
+                        booking_id,
+                        house_id,
+                    ),
+                )
+                updated = cur.rowcount
+        return updated > 0
+    except Exception:
+        return False
+
+
+def delete_booking(booking_id: int, house_id: int) -> bool:
+    with get_connection() as con:
+        with con.cursor() as cur:
+            cur.execute(
+                """
+                DELETE FROM laundry_bookings
+                WHERE id = %s AND house_id = %s
+                """,
+                (booking_id, house_id),
+            )
+            deleted = cur.rowcount
+        con.commit()
+    return deleted > 0

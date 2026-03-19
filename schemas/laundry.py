@@ -11,6 +11,7 @@ class LaundryBookingIn(BaseModel):
 
 class LaundryBookingOut(BaseModel):
     id: int
+    person_id: int
     date: date
     person_name: str
     start_time: time

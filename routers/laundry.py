@@ -64,3 +64,44 @@ def book_laundry_slot(
             detail="Slot already booked"
         )
     return {"status": "ok"}
+
+
+@router.put("/{booking_id}")
+def update_laundry_booking(
+    booking_id: int,
+    booking: LaundryBookingIn,
+    house_id: int = Depends(get_current_house_id),
+):
+    person = get_person(house_id, booking.person_id)
+    if person is None:
+        raise HTTPException(status_code=400, detail="Person does not belong to this house")
+
+    start_dt = datetime.combine(booking.date, booking.start_time)
+    end_dt = datetime.combine(booking.date, booking.end_time)
+    if end_dt <= start_dt:
+        raise HTTPException(status_code=400, detail="End time must be after start time")
+    duration_minutes = int((end_dt - start_dt).total_seconds() / 60)
+
+    success = laundry_service.update_booking(
+        booking_id,
+        booking.date,
+        booking.start_time,
+        booking.end_time,
+        duration_minutes,
+        booking.person_id,
+        house_id,
+    )
+    if not success:
+        raise HTTPException(status_code=409, detail="Slot already booked or booking missing")
+    return {"status": "ok"}
+
+
+@router.delete("/{booking_id}")
+def delete_laundry_booking(
+    booking_id: int,
+    house_id: int = Depends(get_current_house_id),
+):
+    deleted = laundry_service.delete_booking(booking_id, house_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Booking not found")
+    return {"status": "ok"}

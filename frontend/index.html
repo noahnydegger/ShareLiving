@@ -120,7 +120,7 @@
 <section id="laundry" class="section-card" style="display:none">
     <h2>Wäsche</h2>
     <div class="laundry-actions">
-        <button onclick="showLaundryAdd()">Buchung hinzufügen</button>
+        <button onclick="startNewLaundryBooking()">Buchung hinzufügen</button>
         <button onclick="showLaundryList()">Buchungen anzeigen</button>
     </div>
 
@@ -130,7 +130,8 @@
         <input id="laundry-date" type="date">
         <input id="laundry-start" type="time">
         <input id="laundry-end" type="time">
-        <button onclick="addLaundryBooking()">Buchung speichern</button>
+        <button id="laundry-save-button" onclick="saveLaundryBooking()">Buchung speichern</button>
+        <button id="laundry-cancel-button" type="button" style="display:none" onclick="resetLaundryForm()">Abbrechen</button>
         <p id="laundry-add-status"></p>
     </div>
 
@@ -143,6 +144,7 @@
                     <th>Start</th>
                     <th>Ende</th>
                     <th>Dauer</th>
+                    <th>Aktionen</th>
                 </tr>
             </thead>
             <tbody></tbody>
@@ -215,7 +217,7 @@
 <section id="guestroom" class="section-card" style="display:none">
     <h2>Gäste</h2>
     <div class="guestroom-actions">
-        <button onclick="showGuestroomAdd()">Buchung hinzufügen</button>
+        <button onclick="startNewGuestroomBooking()">Buchung hinzufügen</button>
         <button onclick="showGuestroomList()">Buchungen anzeigen</button>
     </div>
 
@@ -225,7 +227,8 @@
         <input id="guestroom-guest" placeholder="Name des Gastes">
         <input id="guestroom-start" type="datetime-local">
         <input id="guestroom-end" type="datetime-local">
-        <button onclick="addGuestroomBooking()">Buchung speichern</button>
+        <button id="guestroom-save-button" onclick="saveGuestroomBooking()">Buchung speichern</button>
+        <button id="guestroom-cancel-button" type="button" style="display:none" onclick="resetGuestroomForm()">Abbrechen</button>
         <p id="guestroom-add-status"></p>
     </div>
 
@@ -238,6 +241,7 @@
                     <th>Start</th>
                     <th>Ende</th>
                     <th>Dauer</th>
+                    <th>Aktionen</th>
                 </tr>
             </thead>
             <tbody></tbody>
