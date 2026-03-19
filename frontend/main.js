@@ -10,6 +10,7 @@ let currentFoodSummaryWeekStart = getMonday(new Date());
 let currentOverviewView = "week";
 let currentOverviewDate = getMonday(new Date());
 let currentOverviewEvents = [];
+let currentFoodWeekEntries = [];
 
 function getElement(id) {
     return document.getElementById(id);
@@ -955,6 +956,101 @@ function formatMealLabel(mealType) {
     return "Abendessen";
 }
 
+function setFoodAddStatus(message) {
+    const status = getElement("food-add-status");
+    if (status) {
+        status.innerText = message;
+    }
+}
+
+function getFoodRowInputs(row) {
+    return {
+        eatsInput: getOptionalChild(row, ".food-eats"),
+        cooksInput: getOptionalChild(row, ".food-cooks"),
+        cookHelperInput: getOptionalChild(row, ".food-cook-helper"),
+        cookingGroupSelect: getOptionalChild(row, ".food-cooking-group"),
+    };
+}
+
+function findExistingCookConflict(personId, dateValue, mealType, cookingGroupId) {
+    return currentFoodWeekEntries.find((entry) => (
+        String(entry.person_id) !== String(personId)
+        && entry.date === dateValue
+        && entry.meal_type === mealType
+        && entry.cooks
+        && String(entry.cooking_group_id || "") === String(cookingGroupId || "")
+    ));
+}
+
+function validateFoodPlannerRow(row, options = {}) {
+    const { showMessage = true, changedField = "" } = options;
+    const personSelect = getElement("food-person-select");
+    const personId = personSelect?.value || getSelectedPersonId();
+    const { cooksInput, cookHelperInput, cookingGroupSelect } = getFoodRowInputs(row);
+    if (!personId || !cooksInput || !cookHelperInput || !cookingGroupSelect) {
+        return true;
+    }
+
+    const dateValue = row.dataset.date;
+    const mealType = row.dataset.mealType;
+    const cookingGroupId = cookingGroupSelect.value || "";
+
+    if (cooksInput.checked && cookHelperInput.checked) {
+        if (changedField === "cooks") {
+            cooksInput.checked = false;
+        } else if (changedField === "helper") {
+            cookHelperInput.checked = false;
+        }
+        if (showMessage) {
+            setFoodAddStatus("Eine Person kann pro Mahlzeit nur Koch oder Helfer sein, nicht beides.");
+        }
+        return false;
+    }
+
+    if (cooksInput.checked) {
+        const conflictingEntry = findExistingCookConflict(personId, dateValue, mealType, cookingGroupId);
+        if (conflictingEntry) {
+            if (changedField === "group") {
+                cookingGroupSelect.value = row.dataset.prevCookingGroupValue || "";
+            } else {
+                cooksInput.checked = false;
+            }
+            if (showMessage) {
+                const cookingGroupName = conflictingEntry.cooking_group_name || "Ganzes Haus";
+                setFoodAddStatus(
+                    `${conflictingEntry.person_name} kocht bereits für ${formatMealLabel(mealType)} in ${cookingGroupName}.`
+                );
+            }
+            return false;
+        }
+    }
+
+    row.dataset.prevCookingGroupValue = cookingGroupId;
+    if (showMessage) {
+        setFoodAddStatus("");
+    }
+    return true;
+}
+
+function attachFoodRowValidation(row) {
+    const { cooksInput, cookHelperInput, cookingGroupSelect } = getFoodRowInputs(row);
+    if (!cooksInput || !cookHelperInput || !cookingGroupSelect) {
+        return;
+    }
+
+    row.dataset.prevCookingGroupValue = cookingGroupSelect.value || "";
+
+    cooksInput.addEventListener("change", () => {
+        validateFoodPlannerRow(row, { changedField: "cooks" });
+    });
+    cookHelperInput.addEventListener("change", () => {
+        validateFoodPlannerRow(row, { changedField: "helper" });
+    });
+    cookingGroupSelect.addEventListener("change", () => {
+        validateFoodPlannerRow(row, { changedField: "group" });
+    });
+}
+
 function renderFoodWeekTable(entries) {
     const personSelect = getElement("food-person-select");
     const weekLabel = getElement("food-add-week-label");
@@ -989,6 +1085,7 @@ function renderFoodWeekTable(entries) {
             <td><input class="food-notes" type="text" value="${entry?.notes ?? ""}" placeholder="kommt später, vegan"></td>
         `;
         tbody.appendChild(row);
+        attachFoodRowValidation(row);
     });
 }
 
@@ -1002,7 +1099,8 @@ async function loadFoodWeekForAdd() {
         }
         return;
     }
-    renderFoodWeekTable(await response.json());
+    currentFoodWeekEntries = await response.json();
+    renderFoodWeekTable(currentFoodWeekEntries);
 }
 
 function changeFoodAddWeek(offset) {
@@ -1059,6 +1157,10 @@ async function saveFoodWeek() {
             return;
         }
 
+        if (!validateFoodPlannerRow(row, { showMessage: true })) {
+            return;
+        }
+
         const payload = {
             person_id: Number(personId),
             date: row.dataset.date,
@@ -1089,7 +1191,8 @@ async function saveFoodWeek() {
     }
 
     status.innerText = "Woche gespeichert.";
-    await loadFoodWeekForAdd();
+    currentFoodSummaryWeekStart = new Date(currentFoodAddWeekStart);
+    showFoodSummary();
 }
 
 function showFoodAdd() {
@@ -1099,6 +1202,10 @@ function showFoodAdd() {
     if (getHouseToken()) {
         loadFoodWeekForAdd();
     }
+}
+
+function formatTimeValue(value) {
+    return value ? String(value).slice(0, 5) : "";
 }
 
 function buildSummaryRows(entries) {
@@ -1112,55 +1219,70 @@ function buildSummaryRows(entries) {
     weekLabel.innerText = formatWeekLabel(currentFoodSummaryWeekStart);
     status.innerText = "";
 
+    if (!entries.length) {
+        status.innerText = "Keine Essenseinträge in dieser Woche.";
+        return;
+    }
+
+    const mealOrder = {
+        brunch: 0,
+        lunch: 1,
+        dinner: 2,
+    };
     const entriesByMeal = new Map();
+
     entries.forEach((entry) => {
-        const key = `${entry.date}|${entry.meal_type}`;
+        const key = `${entry.date}|${entry.meal_type}|${entry.cooking_group_id || "house"}`;
         if (!entriesByMeal.has(key)) {
             entriesByMeal.set(key, []);
         }
         entriesByMeal.get(key).push(entry);
     });
 
-    getMealRowsForWeek(currentFoodSummaryWeekStart).forEach((mealRow) => {
-        const key = `${mealRow.date}|${mealRow.mealType}`;
-        const mealEntries = entriesByMeal.get(key) || [];
+    const summaryRows = Array.from(entriesByMeal.values())
+        .map((mealEntries) => {
+            const firstEntry = mealEntries[0];
+            const cooks = mealEntries
+                .filter((entry) => entry.cooks)
+                .map((entry) => entry.person_name);
+            const helpers = mealEntries
+                .filter((entry) => entry.cook_helper)
+                .map((entry) => entry.person_name);
+            const totalPeople = mealEntries.reduce((sum, entry) => (
+                entry.eats ? sum + 1 + Number(entry.guests || 0) : sum
+            ), 0);
 
-        if (!mealEntries.length) {
-            const emptyRow = document.createElement("tr");
-            emptyRow.innerHTML = `
-                <td>${mealRow.date}</td>
-                <td>${formatMealLabel(mealRow.mealType)}</td>
-                <td>—</td>
-                <td>—</td>
-                <td>Nein</td>
-                <td>Nein</td>
-                <td>Nein</td>
-                <td>0</td>
-                <td>Nein</td>
-                <td>${getDefaultMealTime(mealRow.mealType)}</td>
-                <td>—</td>
-            `;
-            tbody.appendChild(emptyRow);
-            return;
-        }
-
-        mealEntries.forEach((entry) => {
-            const row = document.createElement("tr");
-            row.innerHTML = `
-                <td>${entry.date}</td>
-                <td>${formatMealLabel(entry.meal_type)}</td>
-                <td>${entry.person_name}</td>
-                <td>${entry.cooking_group_name || "Ganzes Haus"}</td>
-                <td>${entry.eats ? "Ja" : "Nein"}</td>
-                <td>${entry.cooks ? "Ja" : "Nein"}</td>
-                <td>${entry.cook_helper ? "Ja" : "Nein"}</td>
-                <td>${entry.guests}</td>
-                <td>${entry.take_leftovers_next_day ? "Ja" : "Nein"}</td>
-                <td>${entry.eating_time}</td>
-                <td>${entry.notes || "—"}</td>
-            `;
-            tbody.appendChild(row);
+            return {
+                date: firstEntry.date,
+                mealType: firstEntry.meal_type,
+                cookingGroupName: firstEntry.cooking_group_name || "Ganzes Haus",
+                cooks,
+                helpers,
+                totalPeople,
+                eatingTime: firstEntry.eating_time || getDefaultMealTime(firstEntry.meal_type),
+            };
+        })
+        .sort((left, right) => {
+            if (left.date !== right.date) {
+                return left.date.localeCompare(right.date);
+            }
+            if (left.mealType !== right.mealType) {
+                return (mealOrder[left.mealType] ?? 99) - (mealOrder[right.mealType] ?? 99);
+            }
+            return left.cookingGroupName.localeCompare(right.cookingGroupName, "de-CH");
         });
+
+    summaryRows.forEach((entry) => {
+        const row = document.createElement("tr");
+        row.innerHTML = `
+            <td>${entry.date}</td>
+            <td>${formatTimeValue(entry.eatingTime)}</td>
+            <td>${entry.cookingGroupName}</td>
+            <td>${entry.cooks.length ? entry.cooks.join(", ") : "—"}</td>
+            <td>${entry.helpers.length ? entry.helpers.join(", ") : "—"}</td>
+            <td>${entry.totalPeople}</td>
+        `;
+        tbody.appendChild(row);
     });
 }
 

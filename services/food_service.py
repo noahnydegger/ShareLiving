@@ -79,8 +79,39 @@ def create_or_update_food_entry(
     normalized_leftovers = bool(take_leftovers_next_day) if meal_type == "lunch" else False
     normalized_time = eating_time or get_default_meal_time(meal_type)
 
+    if normalized_cooks and normalized_helper:
+        raise ValueError("A person can only cook or help for a meal, not both")
+
     with get_connection() as con:
         with con.cursor() as cur:
+            if normalized_cooks:
+                cur.execute(
+                    """
+                    SELECT p.name
+                    FROM food_entries AS fe
+                    JOIN people AS p ON p.id = fe.person_id
+                    WHERE fe.house_id = %s
+                      AND fe.date = %s
+                      AND fe.meal_type = %s
+                      AND fe.cooks = TRUE
+                      AND fe.person_id <> %s
+                      AND fe.cooking_group_id IS NOT DISTINCT FROM %s
+                    LIMIT 1
+                    """,
+                    (
+                        house_id,
+                        entry_date,
+                        meal_type,
+                        person_id,
+                        cooking_group_id,
+                    ),
+                )
+                existing_cook = cur.fetchone()
+                if existing_cook:
+                    raise ValueError(
+                        f"{existing_cook['name']} already cooks for this meal and cooking group"
+                    )
+
             cur.execute(
                 """
                 INSERT INTO food_entries (
