@@ -191,6 +191,7 @@ This repo includes:
 
 - `Dockerfile` for container builds
 - `fly.toml` for Fly.io deployment
+- `fly.staging.toml` for Fly.io staging deployment
 
 The Fly app is configured to run:
 
@@ -204,6 +205,55 @@ Before deploying, set production secrets for:
 - `HOUSE_TOKEN_SECRET`
 - `HOUSE_TOKEN_TTL_SECONDS`
 - `ALLOWED_ORIGINS`
+
+## Fly Production + Staging
+
+The repo is now set up for two Fly apps:
+
+- production via [`fly.toml`](/Users/noahnydegger/GitHub/Websites/ShareLiving/fly.toml) on the `main` branch
+- staging via [`fly.staging.toml`](/Users/noahnydegger/GitHub/Websites/ShareLiving/fly.staging.toml) on the `develop` branch
+
+GitHub Actions:
+
+- [`.github/workflows/fly-deploy.yml`](/Users/noahnydegger/GitHub/Websites/ShareLiving/.github/workflows/fly-deploy.yml) deploys production on pushes to `main`
+- [`.github/workflows/fly-deploy-staging.yml`](/Users/noahnydegger/GitHub/Websites/ShareLiving/.github/workflows/fly-deploy-staging.yml) deploys staging on pushes to `develop`
+
+### One-time staging setup
+
+1. Create a second Fly app:
+
+```bash
+flyctl apps create shareliving-staging
+```
+
+2. Create a separate Supabase project for staging and copy both connection strings:
+
+- pooled or async URL for `DATABASE_URL`
+- direct PostgreSQL URL for `SYNC_DATABASE_URL`
+
+3. Set staging secrets on the Fly staging app:
+
+```bash
+flyctl secrets set \
+  DATABASE_URL="postgresql+asyncpg://..." \
+  SYNC_DATABASE_URL="postgresql://..." \
+  HOUSE_TOKEN_SECRET="replace-with-a-different-secret" \
+  HOUSE_TOKEN_TTL_SECONDS="604800" \
+  ALLOWED_ORIGINS="https://shareliving-staging.fly.dev" \
+  -a shareliving-staging
+```
+
+4. Deploy staging once manually to verify everything:
+
+```bash
+flyctl deploy -c fly.staging.toml
+```
+
+### Notes
+
+- Use a different Supabase project or at least a different database for staging.
+- Use a different `HOUSE_TOKEN_SECRET` for staging and production.
+- If you want a custom staging domain later, update `ALLOWED_ORIGINS` to that domain too.
 
 ## Current Limitations
 
