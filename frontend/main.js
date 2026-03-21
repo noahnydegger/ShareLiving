@@ -52,7 +52,28 @@ function setElementDisplay(id, value) {
     }
 }
 
+function closeNavDropdown() {
+    getOptionalElements(".nav-dropdown").forEach((dropdown) => {
+        dropdown.classList.remove("is-open");
+    });
+}
+
+function toggleNavDropdown(event) {
+    event?.preventDefault();
+    event?.stopPropagation();
+    const dropdown = event?.currentTarget?.closest(".nav-dropdown");
+    if (!dropdown) {
+        return;
+    }
+    const shouldOpen = !dropdown.classList.contains("is-open");
+    closeNavDropdown();
+    if (shouldOpen) {
+        dropdown.classList.add("is-open");
+    }
+}
+
 function showSection(id) {
+    closeNavDropdown();
     document.querySelectorAll("section").forEach((section) => {
         section.style.display = "none";
     });
@@ -1019,7 +1040,7 @@ function addDays(date, days) {
 
 function formatWeekLabel(weekStart) {
     const weekEnd = addDays(weekStart, 6);
-    return `${formatDate(weekStart)} bis ${formatDate(weekEnd)}`;
+    return `${formatMonthDay(weekStart)} bis ${formatMonthDay(weekEnd)}`;
 }
 
 function getWeekDates(weekStart = getMonday(new Date())) {
@@ -1057,6 +1078,16 @@ function getMonthGridEnd(date) {
     const day = monthEnd.getDay();
     const diff = day === 0 ? 0 : 7 - day;
     return addDays(monthEnd, diff);
+}
+
+function formatMonthDay(dateValue) {
+    const date = typeof dateValue === "string"
+        ? new Date(`${dateValue}T00:00:00`)
+        : dateValue;
+    return date.toLocaleDateString("de-CH", {
+        day: "2-digit",
+        month: "2-digit",
+    });
 }
 
 function getDateRangeForOverview() {
@@ -1119,6 +1150,11 @@ function getOverviewEventsForDate(dateValue) {
             return false;
         }
         return true;
+    }).sort((left, right) => {
+        if ((left.sortMinutes ?? 9999) !== (right.sortMinutes ?? 9999)) {
+            return (left.sortMinutes ?? 9999) - (right.sortMinutes ?? 9999);
+        }
+        return left.title.localeCompare(right.title, "de-CH");
     });
 }
 
@@ -1136,11 +1172,19 @@ function buildFoodEvents(foodEntries) {
                 cooks: [],
                 totalPeople: 0,
                 personIds: new Set(),
+                latestTime: entry.eating_time || getDefaultMealTime(entry.meal_type),
+                latestUpdatedAt: entry.updated_at || "",
             });
         }
 
         const item = groupedEntries.get(key);
-        item.personIds.add(String(entry.person_id));
+        if (entry.eats || entry.cooks || entry.cook_helper) {
+            item.personIds.add(String(entry.person_id));
+        }
+        if ((entry.updated_at || "") >= (item.latestUpdatedAt || "")) {
+            item.latestTime = entry.eating_time || item.latestTime;
+            item.latestUpdatedAt = entry.updated_at || item.latestUpdatedAt;
+        }
         if (entry.cooks) {
             item.cooks.push(entry.person_name);
         }
@@ -1152,8 +1196,11 @@ function buildFoodEvents(foodEntries) {
     return Array.from(groupedEntries.values()).map((entry) => ({
         type: "food",
         date: entry.date,
-        title: `${formatMealLabel(entry.mealType)} · ${entry.cookingGroupName}`,
-        subtitle: `${entry.cooks.length ? entry.cooks.join(", ") : "Kein Koch"} · ${entry.totalPeople} Personen`,
+        title: `${formatTimeValue(entry.latestTime || getDefaultMealTime(entry.mealType))} · ${entry.cookingGroupName}`,
+        subtitle: entry.cooks.length ? entry.cooks.join(", ") : "Kein Koch",
+        detail: `${entry.totalPeople} Personen`,
+        sortMinutes: Number(String(entry.latestTime || "23:59").slice(0, 2)) * 60
+            + Number(String(entry.latestTime || "23:59").slice(3, 5)),
         personIds: Array.from(entry.personIds),
     }));
 }
@@ -1164,6 +1211,8 @@ function buildLaundryEvents(laundryEntries) {
         date: entry.date,
         title: `${entry.start_time.slice(0, 5)}–${entry.end_time.slice(0, 5)}`,
         subtitle: entry.person_name,
+        detail: `Waschmaschine ${entry.machine}`,
+        sortMinutes: Number(entry.start_time.slice(0, 2)) * 60 + Number(entry.start_time.slice(3, 5)),
         personIds: [String(entry.person_id)],
     }));
 }
@@ -1200,6 +1249,10 @@ function buildGuestroomEvents(guestroomEntries, startDate, endDate) {
                 date: formatDate(cursor),
                 title: entry.guest_name,
                 subtitle: "",
+                detail: formatGuestroomRoomLabel(entry.room_name, entry.responsible_name),
+                sortMinutes: formatDate(cursor) === formatDate(startAt)
+                    ? startAt.getHours() * 60 + startAt.getMinutes()
+                    : 0,
                 personIds: [String(entry.person_id)],
             });
             cursor = addDays(cursor, 1);
@@ -1214,6 +1267,13 @@ function formatDateTime(value) {
         return "";
     }
     return value.replace("T", " ").replace(":00", "");
+}
+
+function formatGuestroomRoomLabel(roomName, responsibleName) {
+    if (roomName === "Eigenes Zimmer" && responsibleName) {
+        return `Zimmer ${responsibleName}`;
+    }
+    return roomName || "";
 }
 
 function roundTimeValueToStep(value, stepMinutes) {
@@ -1246,11 +1306,19 @@ function roundDateTimeLocalValueToStep(value, stepMinutes) {
 
 function createOverviewEventHtml(event) {
     return `
-        <div class="calendar-event calendar-event--${event.type}">
+        <div class="calendar-event calendar-event--${event.type}" onclick="toggleOverviewEventDetails(this)" tabindex="0">
             <strong>${event.title}</strong>
             <span>${event.subtitle}</span>
+            <span class="calendar-event-detail">${event.detail || ""}</span>
         </div>
     `;
+}
+
+function toggleOverviewEventDetails(element) {
+    if (!element) {
+        return;
+    }
+    element.classList.toggle("is-expanded");
 }
 
 function renderOverviewWeek() {
@@ -1271,7 +1339,7 @@ function renderOverviewWeek() {
             <div class="calendar-day-card${isToday(dateValue) ? " calendar-day-card--today" : ""}">
                 <div class="calendar-day-header">
                     <strong>${dayLabel}</strong>
-                    <span>${dateValue}</span>
+                    <span>${formatMonthDay(dateValue)}</span>
                 </div>
                 <div class="calendar-day-events">
                     ${events.length ? events.map(createOverviewEventHtml).join("") : '<p class="calendar-empty">Keine Einträge</p>'}
@@ -2427,7 +2495,7 @@ async function loadGuestroomBookings() {
         const durationDays = getDurationDays(booking.start_at, booking.end_at);
         row.innerHTML = `
             <td>${booking.responsible_name}</td>
-            <td>${booking.room_name}</td>
+            <td>${formatGuestroomRoomLabel(booking.room_name, booking.responsible_name)}</td>
             <td>${booking.guest_name}</td>
             <td>${formatDateTime(booking.start_at)}</td>
             <td>${formatDateTime(booking.end_at)}</td>
@@ -2539,6 +2607,17 @@ function initGuestroomPage() {
 }
 
 document.addEventListener("DOMContentLoaded", async () => {
+    document.addEventListener("click", (event) => {
+        if (!event.target.closest(".nav-dropdown")) {
+            closeNavDropdown();
+        }
+    });
+    document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape") {
+            closeNavDropdown();
+        }
+    });
+
     initHomePage();
     initLaundryPage();
     initFoodPage();

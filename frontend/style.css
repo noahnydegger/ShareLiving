@@ -68,7 +68,8 @@ body {
 .top-nav a:hover,
 .top-nav a:focus-visible,
 .nav-dropdown:hover .nav-dropdown-toggle,
-.nav-dropdown:focus-within .nav-dropdown-toggle {
+.nav-dropdown:focus-within .nav-dropdown-toggle,
+.nav-dropdown.is-open .nav-dropdown-toggle {
     background: #e8f0fe;
     color: var(--accent);
     transform: translateY(-1px);
@@ -93,7 +94,8 @@ body {
 }
 
 .nav-dropdown:hover .nav-dropdown-menu,
-.nav-dropdown:focus-within .nav-dropdown-menu {
+.nav-dropdown:focus-within .nav-dropdown-menu,
+.nav-dropdown.is-open .nav-dropdown-menu {
     display: flex;
     flex-direction: column;
 }
@@ -489,6 +491,7 @@ ul {
     border-radius: 12px;
     border-left: 4px solid transparent;
     background: #fff;
+    cursor: pointer;
 }
 
 .calendar-event strong,
@@ -507,6 +510,21 @@ ul {
 
 .calendar-event span:empty {
     display: none;
+}
+
+.calendar-event-detail {
+    max-height: 0;
+    overflow: hidden;
+    opacity: 0;
+    transition: max-height 0.18s ease, opacity 0.18s ease, margin-top 0.18s ease;
+}
+
+.calendar-event:hover .calendar-event-detail,
+.calendar-event:focus-within .calendar-event-detail,
+.calendar-event.is-expanded .calendar-event-detail {
+    max-height: 3rem;
+    opacity: 1;
+    margin-top: 0.25rem;
 }
 
 .calendar-event--food {
