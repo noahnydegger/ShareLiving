@@ -24,7 +24,7 @@
     <a href="#" onclick="showSection('help')">Hilfe</a>
     <span style="margin-left:auto"></span>
     <div class="nav-current-person" data-auth-only style="display:none">
-        <label for="current-person-select">Aktuelle Person</label>
+        <label for="current-person-select">Person</label>
         <select id="current-person-select" onchange="handleCurrentPersonChange()">
             <option value="">Person auswählen</option>
         </select>
@@ -63,21 +63,8 @@
 
         <div class="panel-grid">
             <div class="panel">
-                <h2>Wohngruppen</h2>
-                <input id="living-group-name" placeholder="Name der Wohngruppe">
-                <button id="living-group-save-button" onclick="saveLivingGroup()">Wohngruppe hinzufügen</button>
-                <button id="living-group-cancel-button" type="button" style="display:none" onclick="resetLivingGroupForm()">Abbrechen</button>
-                <button id="living-group-edit-toggle" type="button" onclick="toggleLivingGroupEditMode()">Edit Wohngruppen</button>
-                <p id="living-group-status"></p>
-                <ul id="living-groups-list"></ul>
-            </div>
-
-            <div class="panel">
                 <h2>Personen</h2>
                 <input id="person-name" placeholder="Name der Person">
-                <select id="person-living-group">
-                    <option value="">Keine Wohngruppe</option>
-                </select>
                 <button id="person-save-button" onclick="savePerson()">Person hinzufügen</button>
                 <button id="person-cancel-button" type="button" style="display:none" onclick="resetPersonForm()">Abbrechen</button>
                 <button id="person-edit-toggle" type="button" onclick="togglePersonEditMode()">Edit Personen</button>
@@ -199,7 +186,7 @@
     <h2>Essen</h2>
     <div class="food-actions">
         <button onclick="showFoodAdd()">Woche planen</button>
-        <button onclick="showFoodSummary()">Zusammenfassung anzeigen</button>
+        <button onclick="showFoodSummary()">Wochenübersicht</button>
     </div>
 
     <div id="food-add" style="display:none">
@@ -215,15 +202,13 @@
             <thead>
                 <tr>
                     <th>Datum</th>
-                    <th>Mahlzeit</th>
                     <th>Isst</th>
+                    <th>Reste</th>
                     <th>Kocht</th>
                     <th>Hilft</th>
                     <th>Gäste</th>
-                    <th>Reste</th>
                     <th>Zeit</th>
-                    <th>Kochgruppe</th>
-                    <th>Notizen</th>
+                    <th>Gruppe</th>
                 </tr>
             </thead>
             <tbody></tbody>
@@ -244,7 +229,7 @@
                 <tr>
                     <th>Datum</th>
                     <th>Zeit</th>
-                    <th>Kochgruppe</th>
+                    <th>Gruppe</th>
                     <th>Koch</th>
                     <th>Helfer</th>
                     <th>Personen</th>

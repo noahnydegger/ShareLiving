@@ -15,6 +15,7 @@ class FoodEntryCreate(BaseModel):
     take_leftovers_next_day: bool = False
     eating_time: Optional[time] = None
     cooking_group_id: Optional[int] = None
+    cooking_group_name: Optional[str] = None
     notes: Optional[str] = None
 
 

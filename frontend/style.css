@@ -52,7 +52,6 @@ body {
 }
 
 .top-nav a,
-.top-nav button,
 .nav-dropdown-toggle {
     color: var(--text);
     font-weight: 600;
@@ -68,8 +67,6 @@ body {
 
 .top-nav a:hover,
 .top-nav a:focus-visible,
-.top-nav button:hover,
-.top-nav button:focus-visible,
 .nav-dropdown:hover .nav-dropdown-toggle,
 .nav-dropdown:focus-within .nav-dropdown-toggle {
     background: #e8f0fe;
@@ -122,6 +119,10 @@ body {
 
 .nav-current-person select {
     min-width: 180px;
+}
+
+#logout-button {
+    margin-left: 0.25rem;
 }
 
 .section-card {

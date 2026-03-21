@@ -50,7 +50,7 @@ def save_food_entry(
             guests=payload.guests,
             take_leftovers_next_day=payload.take_leftovers_next_day,
             eating_time=payload.eating_time,
-            cooking_group_id=payload.cooking_group_id,
+            cooking_group_name=payload.cooking_group_name,
             notes=payload.notes,
         )
     except ValueError as exc:

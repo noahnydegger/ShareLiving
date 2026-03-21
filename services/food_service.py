@@ -21,7 +21,7 @@ def validate_food_entry(
     person_id: int,
     meal_type: str,
     entry_date: date,
-    cooking_group_id: Optional[int],
+    cooking_group_name: Optional[str],
 ):
     if meal_type not in VALID_MEAL_TYPES:
         raise ValueError("Meal type must be lunch, dinner, or brunch")
@@ -42,18 +42,6 @@ def validate_food_entry(
             if not cur.fetchone():
                 raise ValueError("Person does not belong to this house")
 
-            if cooking_group_id is not None:
-                cur.execute(
-                    """
-                    SELECT id
-                    FROM living_groups
-                    WHERE id = %s AND house_id = %s
-                    """,
-                    (cooking_group_id, house_id),
-                )
-                if not cur.fetchone():
-                    raise ValueError("Cooking group does not belong to this house")
-
 
 def create_or_update_food_entry(
     house_id: int,
@@ -66,12 +54,15 @@ def create_or_update_food_entry(
     guests: int,
     take_leftovers_next_day: bool,
     eating_time: Optional[time],
-    cooking_group_id: Optional[int],
+    cooking_group_name: Optional[str],
     notes: Optional[str],
 ) -> dict:
-    validate_food_entry(house_id, person_id, meal_type, entry_date, cooking_group_id)
+    validate_food_entry(house_id, person_id, meal_type, entry_date, cooking_group_name)
 
     cleaned_notes = (notes or "").strip() or None
+    normalized_group_name = (cooking_group_name or "").strip() or None
+    if normalized_group_name == "Ganzes Haus":
+        normalized_group_name = None
     normalized_guests = max(int(guests or 0), 0)
     normalized_eats = bool(eats)
     normalized_cooks = bool(cooks) if normalized_eats else False
@@ -95,7 +86,7 @@ def create_or_update_food_entry(
                       AND fe.meal_type = %s
                       AND fe.cooks = TRUE
                       AND fe.person_id <> %s
-                      AND fe.cooking_group_id IS NOT DISTINCT FROM %s
+                      AND fe.cooking_group_name IS NOT DISTINCT FROM %s
                     LIMIT 1
                     """,
                     (
@@ -103,7 +94,7 @@ def create_or_update_food_entry(
                         entry_date,
                         meal_type,
                         person_id,
-                        cooking_group_id,
+                        normalized_group_name,
                     ),
                 )
                 existing_cook = cur.fetchone()
@@ -125,10 +116,11 @@ def create_or_update_food_entry(
                     guests,
                     take_leftovers_next_day,
                     eating_time,
+                    cooking_group_name,
                     cooking_group_id,
                     notes
                 )
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT (house_id, person_id, date, meal_type)
                 DO UPDATE SET eats = EXCLUDED.eats,
                               cooks = EXCLUDED.cooks,
@@ -136,6 +128,7 @@ def create_or_update_food_entry(
                               guests = EXCLUDED.guests,
                               take_leftovers_next_day = EXCLUDED.take_leftovers_next_day,
                               eating_time = EXCLUDED.eating_time,
+                              cooking_group_name = EXCLUDED.cooking_group_name,
                               cooking_group_id = EXCLUDED.cooking_group_id,
                               notes = EXCLUDED.notes
                 RETURNING id
@@ -151,7 +144,8 @@ def create_or_update_food_entry(
                     normalized_guests,
                     normalized_leftovers,
                     normalized_time,
-                    cooking_group_id,
+                    normalized_group_name,
+                    None,
                     cleaned_notes,
                 ),
             )
@@ -179,7 +173,7 @@ def get_food_entry_by_id(house_id: int, entry_id: int) -> dict:
                        fe.take_leftovers_next_day,
                        fe.eating_time,
                        fe.cooking_group_id,
-                       lg.name AS cooking_group_name,
+                       COALESCE(fe.cooking_group_name, lg.name) AS cooking_group_name,
                        fe.notes
                 FROM food_entries AS fe
                 JOIN people AS p ON p.id = fe.person_id
@@ -213,7 +207,7 @@ def get_food_entries_by_date_range(
                        fe.take_leftovers_next_day,
                        fe.eating_time,
                        fe.cooking_group_id,
-                       lg.name AS cooking_group_name,
+                       COALESCE(fe.cooking_group_name, lg.name) AS cooking_group_name,
                        fe.notes
                 FROM food_entries AS fe
                 JOIN people AS p ON p.id = fe.person_id

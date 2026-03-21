@@ -439,6 +439,12 @@ def init_db():
             cur.execute(
                 """
                 ALTER TABLE food_entries
+                ADD COLUMN IF NOT EXISTS cooking_group_name TEXT NULL
+                """
+            )
+            cur.execute(
+                """
+                ALTER TABLE food_entries
                 ADD COLUMN IF NOT EXISTS notes TEXT NULL
                 """
             )

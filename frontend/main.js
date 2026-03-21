@@ -5,7 +5,6 @@ const HOUSE_ID_KEY = "shareLiving.houseId";
 const ACTIVE_SECTION_KEY = "shareLiving.activeSection";
 
 let currentPeople = [];
-let currentLivingGroups = [];
 let currentGuestRooms = [];
 let currentChores = [];
 let currentFoodAddWeekStart = getMonday(new Date());
@@ -20,7 +19,6 @@ let currentLaundryBookings = [];
 let currentGuestroomBookings = [];
 let currentLaundryOffset = 0;
 let currentGuestroomOffset = 0;
-let editingLivingGroupId = null;
 let editingPersonId = null;
 let editingGuestRoomId = null;
 let editingChoreId = null;
@@ -173,9 +171,7 @@ function fillPersonSelect(selectId, includeEmpty = false, emptyLabel = "Person a
     currentPeople.forEach((person) => {
         const option = document.createElement("option");
         option.value = String(person.id);
-        option.textContent = person.living_group_name
-            ? `${person.name} (${person.living_group_name})`
-            : person.name;
+        option.textContent = person.name;
         select.appendChild(option);
     });
 
@@ -193,53 +189,6 @@ function syncPersonSelectors() {
     fillPersonSelect("food-person-select", false, "Person auswählen", selectedPersonId);
     fillPersonSelect("guestroom-person-select", false, "Person auswählen", selectedPersonId);
     renderGuestroomRoomOptions();
-}
-
-function createCookingGroupOptions(selectedValue = "") {
-    const selected = String(selectedValue || "");
-    let options = '<option value="">Ganzes Haus</option>';
-    currentLivingGroups.forEach((group) => {
-        const isSelected = String(group.id) === selected ? " selected" : "";
-        options += `<option value="${group.id}"${isSelected}>${group.name}</option>`;
-    });
-    return options;
-}
-
-function renderLivingGroups() {
-    const list = getElement("living-groups-list");
-    if (!list) {
-        return;
-    }
-    list.innerHTML = "";
-
-    if (!currentLivingGroups.length) {
-        list.innerHTML = "<li>Noch keine Wohngruppen.</li>";
-        return;
-    }
-
-    currentLivingGroups.forEach((group) => {
-        const item = document.createElement("li");
-        item.innerHTML = livingGroupEditMode
-            ? `
-                <span>${group.name}</span>
-                <button type="button" onclick="editLivingGroupById(${group.id})">Bearbeiten</button>
-                <button type="button" onclick="deleteLivingGroup(${group.id})">Löschen</button>
-            `
-            : `<span>${group.name}</span>`;
-        list.appendChild(item);
-    });
-
-    const select = getElement("person-living-group");
-    if (!select) {
-        return;
-    }
-    select.innerHTML = '<option value="">Keine Wohngruppe</option>';
-    currentLivingGroups.forEach((group) => {
-        const option = document.createElement("option");
-        option.value = String(group.id);
-        option.textContent = group.name;
-        select.appendChild(option);
-    });
 }
 
 function renderGuestRooms() {
@@ -309,16 +258,13 @@ function renderPeople() {
 
     currentPeople.forEach((person) => {
         const item = document.createElement("li");
-        const label = person.living_group_name
-            ? `${person.name} - ${person.living_group_name}`
-            : person.name;
         item.innerHTML = personEditMode
             ? `
-                <span>${label}</span>
+                <span>${person.name}</span>
                 <button type="button" onclick="editPersonById(${person.id})">Bearbeiten</button>
                 <button type="button" onclick="deletePerson(${person.id})">Löschen</button>
             `
-            : `<span>${label}</span>`;
+            : `<span>${person.name}</span>`;
         list.appendChild(item);
     });
 
@@ -328,21 +274,18 @@ function renderPeople() {
 }
 
 async function loadHouseData() {
-    const [groupsResponse, peopleResponse, guestRoomsResponse] = await Promise.all([
-        apiFetch("/api/living-groups"),
+    const [peopleResponse, guestRoomsResponse] = await Promise.all([
         apiFetch("/api/people"),
         apiFetch("/api/guest-rooms"),
     ]);
 
-    if (!groupsResponse.ok || !peopleResponse.ok || !guestRoomsResponse.ok) {
+    if (!peopleResponse.ok || !guestRoomsResponse.ok) {
         return false;
     }
 
-    currentLivingGroups = await groupsResponse.json();
     currentPeople = await peopleResponse.json();
     currentGuestRooms = await guestRoomsResponse.json();
 
-    renderLivingGroups();
     renderPeople();
     renderGuestRooms();
     renderChoreAssignments();
@@ -446,24 +389,19 @@ function logoutHouse() {
     setSelectedPersonId("");
     clearAuthState();
     currentPeople = [];
-    currentLivingGroups = [];
     currentGuestRooms = [];
     currentChores = [];
-    editingLivingGroupId = null;
     editingPersonId = null;
     editingGuestRoomId = null;
     editingChoreId = null;
-    livingGroupEditMode = false;
     personEditMode = false;
     guestRoomEditMode = false;
     setAuthVisibility(false);
-    renderLivingGroups();
     renderPeople();
     renderGuestRooms();
     renderChoresList();
     renderChoreAssignments();
     renderChoresOverview();
-    updateLivingGroupFormUi();
     updatePersonFormUi();
     updateGuestRoomFormUi();
     updateChoreFormUi();
@@ -480,141 +418,17 @@ function handleCurrentPersonChange() {
     window.location.reload();
 }
 
-async function createLivingGroup() {
-    const input = getElement("living-group-name");
-    const status = getElement("living-group-status");
-    if (!input || !status) {
-        return;
-    }
-    status.innerText = "";
-
-    const response = await apiFetch("/api/living-groups", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: input.value.trim() }),
-    });
-
-    if (!response.ok) {
-        const error = await response.text();
-        status.innerText = `Wohngruppe konnte nicht hinzugefügt werden: ${error}`;
-        return;
-    }
-
-    input.value = "";
-    status.innerText = "Wohngruppe hinzugefügt.";
-    await loadHouseData();
-    await renderActiveFoodViews();
-}
-
-function updateLivingGroupFormUi() {
-    const saveButton = getElement("living-group-save-button");
-    const cancelButton = getElement("living-group-cancel-button");
-    const editToggle = getElement("living-group-edit-toggle");
-    if (saveButton) {
-        saveButton.innerText = editingLivingGroupId ? "Änderungen speichern" : "Wohngruppe hinzufügen";
-    }
-    if (cancelButton) {
-        cancelButton.style.display = editingLivingGroupId ? "inline-block" : "none";
-    }
-    if (editToggle) {
-        editToggle.innerText = livingGroupEditMode ? "Fertig" : "Edit Wohngruppen";
-    }
-}
-
-function toggleLivingGroupEditMode() {
-    livingGroupEditMode = !livingGroupEditMode;
-    if (!livingGroupEditMode) {
-        resetLivingGroupForm();
-    }
-    renderLivingGroups();
-    updateLivingGroupFormUi();
-}
-
-function resetLivingGroupForm() {
-    editingLivingGroupId = null;
-    const input = getElement("living-group-name");
-    const status = getElement("living-group-status");
-    if (input) {
-        input.value = "";
-    }
-    if (status) {
-        status.innerText = "";
-    }
-    updateLivingGroupFormUi();
-}
-
-function editLivingGroupById(livingGroupId) {
-    const group = currentLivingGroups.find((entry) => entry.id === livingGroupId);
-    const input = getElement("living-group-name");
-    const status = getElement("living-group-status");
-    if (!group || !input || !status) {
-        return;
-    }
-    editingLivingGroupId = livingGroupId;
-    input.value = group.name;
-    status.innerText = "Wohngruppe bearbeiten.";
-    updateLivingGroupFormUi();
-}
-
-async function saveLivingGroup() {
-    if (editingLivingGroupId) {
-        const input = getElement("living-group-name");
-        const status = getElement("living-group-status");
-        if (!input || !status) {
-            return;
-        }
-        status.innerText = "";
-        const response = await apiFetch(`/api/living-groups/${editingLivingGroupId}`, {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ name: input.value.trim() }),
-        });
-        if (!response.ok) {
-            const error = await response.text();
-            status.innerText = `Wohngruppe konnte nicht gespeichert werden: ${error}`;
-            return;
-        }
-        status.innerText = "Wohngruppe aktualisiert.";
-        resetLivingGroupForm();
-        await loadHouseData();
-        await renderActiveFoodViews();
-        return;
-    }
-    await createLivingGroup();
-}
-
-async function deleteLivingGroup(livingGroupId) {
-    const status = getElement("living-group-status");
-    if (!window.confirm("Wohngruppe wirklich löschen?")) {
-        return;
-    }
-    const response = await apiFetch(`/api/living-groups/${livingGroupId}`, { method: "DELETE" });
-    if (!response.ok) {
-        const error = await response.text();
-        if (status) {
-            status.innerText = `Wohngruppe konnte nicht gelöscht werden: ${error}`;
-        }
-        return;
-    }
-    if (editingLivingGroupId === livingGroupId) {
-        resetLivingGroupForm();
-    }
-    await loadHouseData();
-    await renderActiveFoodViews();
-}
-
 async function createPerson() {
     const nameInput = getElement("person-name");
-    const groupSelect = getElement("person-living-group");
     const status = getElement("person-status");
-    if (!nameInput || !groupSelect || !status) {
+    if (!nameInput || !status) {
         return;
     }
     status.innerText = "";
 
     const payload = {
         name: nameInput.value.trim(),
-        living_group_id: groupSelect.value ? Number(groupSelect.value) : null,
+        living_group_id: null,
     };
 
     const response = await apiFetch("/api/people", {
@@ -630,7 +444,6 @@ async function createPerson() {
     }
 
     nameInput.value = "";
-    groupSelect.value = "";
     status.innerText = "Person hinzugefügt.";
     await loadHouseData();
     await renderActiveFoodViews();
@@ -663,13 +476,9 @@ function togglePersonEditMode() {
 function resetPersonForm() {
     editingPersonId = null;
     const nameInput = getElement("person-name");
-    const groupSelect = getElement("person-living-group");
     const status = getElement("person-status");
     if (nameInput) {
         nameInput.value = "";
-    }
-    if (groupSelect) {
-        groupSelect.value = "";
     }
     if (status) {
         status.innerText = "";
@@ -680,14 +489,12 @@ function resetPersonForm() {
 function editPersonById(personId) {
     const person = currentPeople.find((entry) => entry.id === personId);
     const nameInput = getElement("person-name");
-    const groupSelect = getElement("person-living-group");
     const status = getElement("person-status");
-    if (!person || !nameInput || !groupSelect || !status) {
+    if (!person || !nameInput || !status) {
         return;
     }
     editingPersonId = personId;
     nameInput.value = person.name;
-    groupSelect.value = person.living_group_id ? String(person.living_group_id) : "";
     status.innerText = "Person bearbeiten.";
     updatePersonFormUi();
 }
@@ -695,9 +502,8 @@ function editPersonById(personId) {
 async function savePerson() {
     if (editingPersonId) {
         const nameInput = getElement("person-name");
-        const groupSelect = getElement("person-living-group");
         const status = getElement("person-status");
-        if (!nameInput || !groupSelect || !status) {
+        if (!nameInput || !status) {
             return;
         }
         status.innerText = "";
@@ -706,7 +512,7 @@ async function savePerson() {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
                 name: nameInput.value.trim(),
-                living_group_id: groupSelect.value ? Number(groupSelect.value) : null,
+                living_group_id: null,
             }),
         });
         if (!response.ok) {
@@ -1858,6 +1664,27 @@ function formatMealLabel(mealType) {
     return "Abendessen";
 }
 
+function formatWeekdayDateLabel(dateValue) {
+    const date = new Date(`${dateValue}T00:00:00`);
+    return date.toLocaleDateString("de-CH", {
+        weekday: "short",
+        day: "2-digit",
+        month: "2-digit",
+    }).replace(",", "");
+}
+
+function formatPlannerDateLabel(dateValue, mealType) {
+    return `${formatWeekdayDateLabel(dateValue)} · ${formatMealLabel(mealType)}`;
+}
+
+function normalizeCookingGroupName(value) {
+    const cleanedValue = String(value || "").trim();
+    if (!cleanedValue || cleanedValue === "Ganzes Haus") {
+        return "";
+    }
+    return cleanedValue;
+}
+
 function setFoodAddStatus(message) {
     const status = getElement("food-add-status");
     if (status) {
@@ -1870,17 +1697,17 @@ function getFoodRowInputs(row) {
         eatsInput: getOptionalChild(row, ".food-eats"),
         cooksInput: getOptionalChild(row, ".food-cooks"),
         cookHelperInput: getOptionalChild(row, ".food-cook-helper"),
-        cookingGroupSelect: getOptionalChild(row, ".food-cooking-group"),
+        cookingGroupInput: getOptionalChild(row, ".food-cooking-group"),
     };
 }
 
-function findExistingCookConflict(personId, dateValue, mealType, cookingGroupId) {
+function findExistingCookConflict(personId, dateValue, mealType, cookingGroupName) {
     return currentFoodWeekEntries.find((entry) => (
         String(entry.person_id) !== String(personId)
         && entry.date === dateValue
         && entry.meal_type === mealType
         && entry.cooks
-        && String(entry.cooking_group_id || "") === String(cookingGroupId || "")
+        && normalizeCookingGroupName(entry.cooking_group_name) === normalizeCookingGroupName(cookingGroupName)
     ));
 }
 
@@ -1888,14 +1715,14 @@ function validateFoodPlannerRow(row, options = {}) {
     const { showMessage = true, changedField = "" } = options;
     const personSelect = getElement("food-person-select");
     const personId = personSelect?.value || getSelectedPersonId();
-    const { cooksInput, cookHelperInput, cookingGroupSelect } = getFoodRowInputs(row);
-    if (!personId || !cooksInput || !cookHelperInput || !cookingGroupSelect) {
+    const { cooksInput, cookHelperInput, cookingGroupInput } = getFoodRowInputs(row);
+    if (!personId || !cooksInput || !cookHelperInput || !cookingGroupInput) {
         return true;
     }
 
     const dateValue = row.dataset.date;
     const mealType = row.dataset.mealType;
-    const cookingGroupId = cookingGroupSelect.value || "";
+    const cookingGroupName = normalizeCookingGroupName(cookingGroupInput.value);
 
     if (cooksInput.checked && cookHelperInput.checked) {
         if (changedField === "cooks") {
@@ -1910,10 +1737,10 @@ function validateFoodPlannerRow(row, options = {}) {
     }
 
     if (cooksInput.checked) {
-        const conflictingEntry = findExistingCookConflict(personId, dateValue, mealType, cookingGroupId);
+        const conflictingEntry = findExistingCookConflict(personId, dateValue, mealType, cookingGroupName);
         if (conflictingEntry) {
             if (changedField === "group") {
-                cookingGroupSelect.value = row.dataset.prevCookingGroupValue || "";
+                cookingGroupInput.value = row.dataset.prevCookingGroupValue || "Ganzes Haus";
             } else {
                 cooksInput.checked = false;
             }
@@ -1927,7 +1754,7 @@ function validateFoodPlannerRow(row, options = {}) {
         }
     }
 
-    row.dataset.prevCookingGroupValue = cookingGroupId;
+    row.dataset.prevCookingGroupValue = cookingGroupInput.value || "Ganzes Haus";
     if (showMessage) {
         setFoodAddStatus("");
     }
@@ -1935,12 +1762,12 @@ function validateFoodPlannerRow(row, options = {}) {
 }
 
 function attachFoodRowValidation(row) {
-    const { cooksInput, cookHelperInput, cookingGroupSelect } = getFoodRowInputs(row);
-    if (!cooksInput || !cookHelperInput || !cookingGroupSelect) {
+    const { cooksInput, cookHelperInput, cookingGroupInput } = getFoodRowInputs(row);
+    if (!cooksInput || !cookHelperInput || !cookingGroupInput) {
         return;
     }
 
-    row.dataset.prevCookingGroupValue = cookingGroupSelect.value || "";
+    row.dataset.prevCookingGroupValue = cookingGroupInput.value || "Ganzes Haus";
 
     cooksInput.addEventListener("change", () => {
         validateFoodPlannerRow(row, { changedField: "cooks" });
@@ -1948,7 +1775,7 @@ function attachFoodRowValidation(row) {
     cookHelperInput.addEventListener("change", () => {
         validateFoodPlannerRow(row, { changedField: "helper" });
     });
-    cookingGroupSelect.addEventListener("change", () => {
+    cookingGroupInput.addEventListener("change", () => {
         validateFoodPlannerRow(row, { changedField: "group" });
     });
 }
@@ -1975,16 +1802,14 @@ function renderFoodWeekTable(entries) {
         row.dataset.date = rowData.date;
         row.dataset.mealType = rowData.mealType;
         row.innerHTML = `
-            <td>${rowData.date}</td>
-            <td>${formatMealLabel(rowData.mealType)}</td>
+            <td>${formatPlannerDateLabel(rowData.date, rowData.mealType)}</td>
             <td><input class="food-eats" type="checkbox" ${entry?.eats ? "checked" : ""}></td>
+            <td><input class="food-leftovers" type="checkbox" ${entry?.take_leftovers_next_day ? "checked" : ""} ${rowData.mealType !== "lunch" ? "disabled" : ""}></td>
             <td><input class="food-cooks" type="checkbox" ${entry?.cooks ? "checked" : ""}></td>
             <td><input class="food-cook-helper" type="checkbox" ${entry?.cook_helper ? "checked" : ""}></td>
             <td><input class="food-guests" type="number" min="0" step="1" value="${entry?.guests ?? 0}"></td>
-            <td><input class="food-leftovers" type="checkbox" ${entry?.take_leftovers_next_day ? "checked" : ""} ${rowData.mealType !== "lunch" ? "disabled" : ""}></td>
             <td><input class="food-time" type="time" value="${entry?.eating_time ?? getDefaultMealTime(rowData.mealType)}"></td>
-            <td><select class="food-cooking-group">${createCookingGroupOptions(entry?.cooking_group_id)}</select></td>
-            <td><input class="food-notes" type="text" value="${entry?.notes ?? ""}" placeholder="kommt später, vegan"></td>
+            <td><input class="food-cooking-group" type="text" value="${entry?.cooking_group_name ?? "Ganzes Haus"}" placeholder="Ganzes Haus"></td>
         `;
         tbody.appendChild(row);
         attachFoodRowValidation(row);
@@ -2042,8 +1867,7 @@ async function saveFoodWeek() {
         const guestsInput = getOptionalChild(row, ".food-guests");
         const leftoversInput = getOptionalChild(row, ".food-leftovers");
         const timeInput = getOptionalChild(row, ".food-time");
-        const cookingGroupSelect = getOptionalChild(row, ".food-cooking-group");
-        const notesInput = getOptionalChild(row, ".food-notes");
+        const cookingGroupInput = getOptionalChild(row, ".food-cooking-group");
 
         if (
             !eatsInput
@@ -2052,8 +1876,7 @@ async function saveFoodWeek() {
             || !guestsInput
             || !leftoversInput
             || !timeInput
-            || !cookingGroupSelect
-            || !notesInput
+            || !cookingGroupInput
         ) {
             status.innerText = "Essensformular ist unvollständig.";
             return;
@@ -2073,10 +1896,7 @@ async function saveFoodWeek() {
             guests: Number(guestsInput.value || "0"),
             take_leftovers_next_day: leftoversInput.checked,
             eating_time: timeInput.value || getDefaultMealTime(row.dataset.mealType),
-            cooking_group_id: cookingGroupSelect.value
-                ? Number(cookingGroupSelect.value)
-                : null,
-            notes: notesInput.value.trim(),
+            cooking_group_name: normalizeCookingGroupName(cookingGroupInput.value),
         };
 
         const response = await apiFetch("/api/food", {
@@ -2134,7 +1954,7 @@ function buildSummaryRows(entries) {
     const entriesByMeal = new Map();
 
     entries.forEach((entry) => {
-        const key = `${entry.date}|${entry.meal_type}|${entry.cooking_group_id || "house"}`;
+        const key = `${entry.date}|${entry.meal_type}|${normalizeCookingGroupName(entry.cooking_group_name) || "house"}`;
         if (!entriesByMeal.has(key)) {
             entriesByMeal.set(key, []);
         }
@@ -2177,11 +1997,11 @@ function buildSummaryRows(entries) {
     summaryRows.forEach((entry) => {
         const row = document.createElement("tr");
         row.innerHTML = `
-            <td>${entry.date}</td>
+            <td>${formatWeekdayDateLabel(entry.date)}</td>
             <td>${formatTimeValue(entry.eatingTime)}</td>
             <td>${entry.cookingGroupName}</td>
-            <td>${entry.cooks.length ? entry.cooks.join(", ") : "—"}</td>
-            <td>${entry.helpers.length ? entry.helpers.join(", ") : "—"}</td>
+            <td>${entry.cooks.length ? entry.cooks.join(", ") : ""}</td>
+            <td>${entry.helpers.length ? entry.helpers.join(", ") : ""}</td>
             <td>${entry.totalPeople}</td>
         `;
         tbody.appendChild(row);
@@ -2554,13 +2374,11 @@ function initHomePage() {
         return;
     }
     setAuthVisibility(false);
-    renderLivingGroups();
     renderPeople();
     renderGuestRooms();
     renderChoresList();
     renderChoreAssignments();
     renderChoresOverview();
-    updateLivingGroupFormUi();
     updatePersonFormUi();
     updateGuestRoomFormUi();
     updateChoreFormUi();
