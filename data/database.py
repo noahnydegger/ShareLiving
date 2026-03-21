@@ -320,7 +320,7 @@ def init_db():
             cur.execute(
                 """
                 ALTER TABLE laundry_bookings
-                ADD COLUMN IF NOT EXISTS machine TEXT NOT NULL DEFAULT '1'
+                ADD COLUMN IF NOT EXISTS machine TEXT NOT NULL DEFAULT 'links'
                 """
             )
             cur.execute(
@@ -392,9 +392,20 @@ def init_db():
             )
             cur.execute(
                 """
+                UPDATE laundry_bookings
+                SET machine = CASE machine
+                    WHEN '1' THEN 'links'
+                    WHEN '2' THEN 'rechts'
+                    WHEN '1 und 2' THEN 'beide'
+                    ELSE machine
+                END
+                """
+            )
+            cur.execute(
+                """
                 ALTER TABLE laundry_bookings
                 ADD CONSTRAINT laundry_bookings_machine_check
-                CHECK (machine IN ('1', '2', '1 und 2'))
+                CHECK (machine IN ('links', 'rechts', 'beide'))
                 """
             )
 

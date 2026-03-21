@@ -4,7 +4,7 @@ from typing import Dict, List, Optional
 from data.database import get_connection
 
 
-VALID_MACHINES = {"1", "2", "1 und 2"}
+VALID_MACHINES = {"links", "rechts", "beide"}
 
 
 def _row_to_booking(row: dict) -> dict:
@@ -21,7 +21,7 @@ def _row_to_booking(row: dict) -> dict:
 
 
 def _machine_overlaps(selected_machine: str, booked_machine: str) -> bool:
-    if selected_machine == "1 und 2" or booked_machine == "1 und 2":
+    if selected_machine == "beide" or booked_machine == "beide":
         return True
     return selected_machine == booked_machine
 

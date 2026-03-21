@@ -1520,7 +1520,7 @@ function resetLaundryForm() {
         dateInput.value = "";
     }
     if (machineSelect) {
-        machineSelect.value = "1";
+        machineSelect.value = "links";
     }
     if (startInput) {
         startInput.value = "";
