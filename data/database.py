@@ -414,6 +414,7 @@ def init_db():
                     take_leftovers_next_day BOOLEAN NOT NULL DEFAULT FALSE,
                     eating_time TIME NOT NULL,
                     cooking_group_id INTEGER NULL REFERENCES living_groups(id),
+                    updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
                     notes TEXT NULL
                 )
                 """
@@ -440,6 +441,12 @@ def init_db():
                 """
                 ALTER TABLE food_entries
                 ADD COLUMN IF NOT EXISTS cooking_group_name TEXT NULL
+                """
+            )
+            cur.execute(
+                """
+                ALTER TABLE food_entries
+                ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT NOW()
                 """
             )
             cur.execute(

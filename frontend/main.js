@@ -1216,6 +1216,34 @@ function formatDateTime(value) {
     return value.replace("T", " ").replace(":00", "");
 }
 
+function roundTimeValueToStep(value, stepMinutes) {
+    if (!value) {
+        return value;
+    }
+    const [hoursText, minutesText] = value.split(":");
+    const totalMinutes = Number(hoursText) * 60 + Number(minutesText);
+    const roundedMinutes = Math.round(totalMinutes / stepMinutes) * stepMinutes;
+    const normalizedMinutes = Math.max(0, Math.min(23 * 60 + 55, roundedMinutes));
+    const roundedHours = Math.floor(normalizedMinutes / 60);
+    const minuteRemainder = normalizedMinutes % 60;
+    return `${pad2(roundedHours)}:${pad2(minuteRemainder)}`;
+}
+
+function roundDateTimeLocalValueToStep(value, stepMinutes) {
+    if (!value) {
+        return value;
+    }
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+        return value;
+    }
+    const totalMinutes = date.getHours() * 60 + date.getMinutes();
+    const roundedMinutes = Math.round(totalMinutes / stepMinutes) * stepMinutes;
+    date.setHours(0, 0, 0, 0);
+    date.setMinutes(roundedMinutes);
+    return formatDateTimeLocal(date);
+}
+
 function createOverviewEventHtml(event) {
     return `
         <div class="calendar-event calendar-event--${event.type}">
@@ -1491,9 +1519,12 @@ async function saveLaundryBooking() {
     const personId = personSelect.value;
     const machine = machineSelect.value;
     const date = dateInput.value;
-    const start = startInput.value;
-    const end = endInput.value;
+    const start = roundTimeValueToStep(startInput.value, 5);
+    const end = roundTimeValueToStep(endInput.value, 5);
     status.innerText = "";
+
+    startInput.value = start;
+    endInput.value = end;
 
     if (!personId || !machine || !date || !start || !end) {
         status.innerText = "Bitte Person, Waschmaschine, Datum, Start- und Endzeit auswählen.";
@@ -1685,6 +1716,19 @@ function normalizeCookingGroupName(value) {
     return cleanedValue;
 }
 
+function getMealGroupSuggestions(entries, dateValue, mealType) {
+    const groups = new Set(["Ganzes Haus"]);
+    entries
+        .filter((entry) => entry.date === dateValue && entry.meal_type === mealType)
+        .forEach((entry) => {
+            const groupName = normalizeCookingGroupName(entry.cooking_group_name);
+            if (groupName) {
+                groups.add(groupName);
+            }
+        });
+    return Array.from(groups).sort((left, right) => left.localeCompare(right, "de-CH"));
+}
+
 function setFoodAddStatus(message) {
     const status = getElement("food-add-status");
     if (status) {
@@ -1697,8 +1741,55 @@ function getFoodRowInputs(row) {
         eatsInput: getOptionalChild(row, ".food-eats"),
         cooksInput: getOptionalChild(row, ".food-cooks"),
         cookHelperInput: getOptionalChild(row, ".food-cook-helper"),
-        cookingGroupInput: getOptionalChild(row, ".food-cooking-group"),
+        cookingGroupSelect: getOptionalChild(row, ".food-cooking-group-select"),
+        cookingGroupCustomInput: getOptionalChild(row, ".food-cooking-group-custom"),
     };
+}
+
+function buildFoodGroupOptions(groupSuggestions, selectedGroupName) {
+    const normalizedSelectedGroup = normalizeCookingGroupName(selectedGroupName);
+    const values = new Set(groupSuggestions);
+    if (normalizedSelectedGroup) {
+        values.add(normalizedSelectedGroup);
+    }
+
+    const options = ['<option value="">Ganzes Haus</option>'];
+    Array.from(values)
+        .filter((groupName) => groupName !== "Ganzes Haus")
+        .sort((left, right) => left.localeCompare(right, "de-CH"))
+        .forEach((groupName) => {
+            const isSelected = normalizedSelectedGroup === groupName ? " selected" : "";
+            options.push(`<option value="${groupName}"${isSelected}>${groupName}</option>`);
+        });
+
+    const customSelected = normalizedSelectedGroup && !groupSuggestions.includes(normalizedSelectedGroup)
+        ? " selected"
+        : "";
+    options.push(`<option value="__custom__"${customSelected}>Andere Gruppe…</option>`);
+    return options.join("");
+}
+
+function getFoodRowGroupName(row) {
+    const { cookingGroupSelect, cookingGroupCustomInput } = getFoodRowInputs(row);
+    if (!cookingGroupSelect || !cookingGroupCustomInput) {
+        return "";
+    }
+    if (cookingGroupSelect.value === "__custom__") {
+        return normalizeCookingGroupName(cookingGroupCustomInput.value);
+    }
+    return normalizeCookingGroupName(cookingGroupSelect.value);
+}
+
+function updateFoodGroupInputVisibility(row) {
+    const { cookingGroupSelect, cookingGroupCustomInput } = getFoodRowInputs(row);
+    if (!cookingGroupSelect || !cookingGroupCustomInput) {
+        return;
+    }
+    const showCustomInput = cookingGroupSelect.value === "__custom__";
+    cookingGroupCustomInput.style.display = showCustomInput ? "block" : "none";
+    if (showCustomInput) {
+        cookingGroupCustomInput.focus();
+    }
 }
 
 function findExistingCookConflict(personId, dateValue, mealType, cookingGroupName) {
@@ -1715,14 +1806,14 @@ function validateFoodPlannerRow(row, options = {}) {
     const { showMessage = true, changedField = "" } = options;
     const personSelect = getElement("food-person-select");
     const personId = personSelect?.value || getSelectedPersonId();
-    const { cooksInput, cookHelperInput, cookingGroupInput } = getFoodRowInputs(row);
-    if (!personId || !cooksInput || !cookHelperInput || !cookingGroupInput) {
+    const { cooksInput, cookHelperInput, cookingGroupSelect, cookingGroupCustomInput } = getFoodRowInputs(row);
+    if (!personId || !cooksInput || !cookHelperInput || !cookingGroupSelect || !cookingGroupCustomInput) {
         return true;
     }
 
     const dateValue = row.dataset.date;
     const mealType = row.dataset.mealType;
-    const cookingGroupName = normalizeCookingGroupName(cookingGroupInput.value);
+    const cookingGroupName = getFoodRowGroupName(row);
 
     if (cooksInput.checked && cookHelperInput.checked) {
         if (changedField === "cooks") {
@@ -1740,7 +1831,18 @@ function validateFoodPlannerRow(row, options = {}) {
         const conflictingEntry = findExistingCookConflict(personId, dateValue, mealType, cookingGroupName);
         if (conflictingEntry) {
             if (changedField === "group") {
-                cookingGroupInput.value = row.dataset.prevCookingGroupValue || "Ganzes Haus";
+                const previousGroupName = row.dataset.prevCookingGroupValue || "";
+                if (!previousGroupName) {
+                    cookingGroupSelect.value = "";
+                    cookingGroupCustomInput.value = "";
+                } else if (Array.from(cookingGroupSelect.options).some((option) => option.value === previousGroupName)) {
+                    cookingGroupSelect.value = previousGroupName;
+                    cookingGroupCustomInput.value = "";
+                } else {
+                    cookingGroupSelect.value = "__custom__";
+                    cookingGroupCustomInput.value = previousGroupName;
+                }
+                updateFoodGroupInputVisibility(row);
             } else {
                 cooksInput.checked = false;
             }
@@ -1754,7 +1856,7 @@ function validateFoodPlannerRow(row, options = {}) {
         }
     }
 
-    row.dataset.prevCookingGroupValue = cookingGroupInput.value || "Ganzes Haus";
+    row.dataset.prevCookingGroupValue = cookingGroupName;
     if (showMessage) {
         setFoodAddStatus("");
     }
@@ -1762,12 +1864,13 @@ function validateFoodPlannerRow(row, options = {}) {
 }
 
 function attachFoodRowValidation(row) {
-    const { cooksInput, cookHelperInput, cookingGroupInput } = getFoodRowInputs(row);
-    if (!cooksInput || !cookHelperInput || !cookingGroupInput) {
+    const { cooksInput, cookHelperInput, cookingGroupSelect, cookingGroupCustomInput } = getFoodRowInputs(row);
+    if (!cooksInput || !cookHelperInput || !cookingGroupSelect || !cookingGroupCustomInput) {
         return;
     }
 
-    row.dataset.prevCookingGroupValue = cookingGroupInput.value || "Ganzes Haus";
+    row.dataset.prevCookingGroupValue = getFoodRowGroupName(row);
+    updateFoodGroupInputVisibility(row);
 
     cooksInput.addEventListener("change", () => {
         validateFoodPlannerRow(row, { changedField: "cooks" });
@@ -1775,7 +1878,11 @@ function attachFoodRowValidation(row) {
     cookHelperInput.addEventListener("change", () => {
         validateFoodPlannerRow(row, { changedField: "helper" });
     });
-    cookingGroupInput.addEventListener("change", () => {
+    cookingGroupSelect.addEventListener("change", () => {
+        updateFoodGroupInputVisibility(row);
+        validateFoodPlannerRow(row, { changedField: "group" });
+    });
+    cookingGroupCustomInput.addEventListener("input", () => {
         validateFoodPlannerRow(row, { changedField: "group" });
     });
 }
@@ -1798,6 +1905,12 @@ function renderFoodWeekTable(entries) {
 
     weekRows.forEach((rowData) => {
         const entry = entryMap.get(`${rowData.date}|${rowData.mealType}`);
+        const groupSuggestions = getMealGroupSuggestions(entries, rowData.date, rowData.mealType);
+        const selectedGroupName = entry?.cooking_group_name || "";
+        const useCustomGroup = Boolean(
+            normalizeCookingGroupName(selectedGroupName)
+            && !groupSuggestions.includes(normalizeCookingGroupName(selectedGroupName))
+        );
         const row = document.createElement("tr");
         row.dataset.date = rowData.date;
         row.dataset.mealType = rowData.mealType;
@@ -1809,7 +1922,12 @@ function renderFoodWeekTable(entries) {
             <td><input class="food-cook-helper" type="checkbox" ${entry?.cook_helper ? "checked" : ""}></td>
             <td><input class="food-guests" type="number" min="0" step="1" value="${entry?.guests ?? 0}"></td>
             <td><input class="food-time" type="time" value="${entry?.eating_time ?? getDefaultMealTime(rowData.mealType)}"></td>
-            <td><input class="food-cooking-group" type="text" value="${entry?.cooking_group_name ?? "Ganzes Haus"}" placeholder="Ganzes Haus"></td>
+            <td>
+                <select class="food-cooking-group-select">
+                    ${buildFoodGroupOptions(groupSuggestions, selectedGroupName)}
+                </select>
+                <input class="food-cooking-group-custom" type="text" value="${useCustomGroup ? selectedGroupName : ""}" placeholder="Andere Gruppe" style="display:${useCustomGroup ? "block" : "none"}; margin-top:0.5rem;">
+            </td>
         `;
         tbody.appendChild(row);
         attachFoodRowValidation(row);
@@ -1867,7 +1985,8 @@ async function saveFoodWeek() {
         const guestsInput = getOptionalChild(row, ".food-guests");
         const leftoversInput = getOptionalChild(row, ".food-leftovers");
         const timeInput = getOptionalChild(row, ".food-time");
-        const cookingGroupInput = getOptionalChild(row, ".food-cooking-group");
+        const cookingGroupSelect = getOptionalChild(row, ".food-cooking-group-select");
+        const cookingGroupCustomInput = getOptionalChild(row, ".food-cooking-group-custom");
 
         if (
             !eatsInput
@@ -1876,7 +1995,8 @@ async function saveFoodWeek() {
             || !guestsInput
             || !leftoversInput
             || !timeInput
-            || !cookingGroupInput
+            || !cookingGroupSelect
+            || !cookingGroupCustomInput
         ) {
             status.innerText = "Essensformular ist unvollständig.";
             return;
@@ -1896,7 +2016,7 @@ async function saveFoodWeek() {
             guests: Number(guestsInput.value || "0"),
             take_leftovers_next_day: leftoversInput.checked,
             eating_time: timeInput.value || getDefaultMealTime(row.dataset.mealType),
-            cooking_group_name: normalizeCookingGroupName(cookingGroupInput.value),
+            cooking_group_name: getFoodRowGroupName(row),
         };
 
         const response = await apiFetch("/api/food", {
@@ -1963,6 +2083,14 @@ function buildSummaryRows(entries) {
 
     const summaryRows = Array.from(entriesByMeal.values())
         .map((mealEntries) => {
+            const latestTimeEntry = mealEntries.reduce((latestEntry, currentEntry) => {
+                if (!latestEntry) {
+                    return currentEntry;
+                }
+                return new Date(currentEntry.updated_at) > new Date(latestEntry.updated_at)
+                    ? currentEntry
+                    : latestEntry;
+            }, null);
             const firstEntry = mealEntries[0];
             const cooks = mealEntries
                 .filter((entry) => entry.cooks)
@@ -1981,7 +2109,7 @@ function buildSummaryRows(entries) {
                 cooks,
                 helpers,
                 totalPeople,
-                eatingTime: firstEntry.eating_time || getDefaultMealTime(firstEntry.meal_type),
+                eatingTime: latestTimeEntry?.eating_time || getDefaultMealTime(firstEntry.meal_type),
             };
         })
         .sort((left, right) => {
@@ -2211,9 +2339,12 @@ async function saveGuestroomBooking() {
     const personId = personSelect.value;
     const guestRoomId = roomSelect.value;
     const guestName = guestInput.value.trim();
-    const startAt = startInput.value;
-    const endAt = endInput.value;
+    const startAt = roundDateTimeLocalValueToStep(startInput.value, 30);
+    const endAt = roundDateTimeLocalValueToStep(endInput.value, 30);
     status.innerText = "";
+
+    startInput.value = startAt;
+    endInput.value = endAt;
 
     if (!personId || !guestName || !startAt || !endAt) {
         status.innerText = "Bitte alle Felder ausfüllen.";

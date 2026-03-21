@@ -152,8 +152,8 @@
             <option value="1 und 2">1 und 2</option>
         </select>
         <input id="laundry-date" type="date">
-        <input id="laundry-start" type="time">
-        <input id="laundry-end" type="time">
+        <input id="laundry-start" type="time" step="300">
+        <input id="laundry-end" type="time" step="300">
         <button id="laundry-save-button" onclick="saveLaundryBooking()">Buchung speichern</button>
         <button id="laundry-cancel-button" type="button" style="display:none" onclick="resetLaundryForm()">Abbrechen</button>
         <p id="laundry-add-status"></p>
@@ -254,8 +254,8 @@
         <label for="guestroom-room-select">Zimmer</label>
         <select id="guestroom-room-select"></select>
         <input id="guestroom-guest" placeholder="Name des Gastes">
-        <input id="guestroom-start" type="datetime-local">
-        <input id="guestroom-end" type="datetime-local">
+        <input id="guestroom-start" type="datetime-local" step="1800">
+        <input id="guestroom-end" type="datetime-local" step="1800">
         <p id="guestroom-room-info"></p>
         <button id="guestroom-save-button" onclick="saveGuestroomBooking()">Buchung speichern</button>
         <button id="guestroom-cancel-button" type="button" style="display:none" onclick="resetGuestroomForm()">Abbrechen</button>
@@ -298,6 +298,21 @@
     </div>
 
     <div id="chores-manage" style="display:none">
+        <div class="panel">
+            <h3>Ämtli zuteilen</h3>
+            <table id="chores-assign-table">
+                <thead>
+                    <tr>
+                        <th>Ämtli</th>
+                        <th>Ort</th>
+                        <th>Zuständig</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+            <p id="chore-assign-status"></p>
+        </div>
+
         <div class="panel-grid">
             <div class="panel">
                 <h3>Ämtli erfassen</h3>
@@ -315,21 +330,6 @@
                 <h3>Bestehende Ämtli</h3>
                 <ul id="chores-list"></ul>
             </div>
-        </div>
-
-        <div class="panel">
-            <h3>Ämtli zuteilen</h3>
-            <table id="chores-assign-table">
-                <thead>
-                    <tr>
-                        <th>Ämtli</th>
-                        <th>Ort</th>
-                        <th>Zuständig</th>
-                    </tr>
-                </thead>
-                <tbody></tbody>
-            </table>
-            <p id="chore-assign-status"></p>
         </div>
     </div>
 

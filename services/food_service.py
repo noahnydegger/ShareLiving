@@ -118,9 +118,10 @@ def create_or_update_food_entry(
                     eating_time,
                     cooking_group_name,
                     cooking_group_id,
+                    updated_at,
                     notes
                 )
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), %s)
                 ON CONFLICT (house_id, person_id, date, meal_type)
                 DO UPDATE SET eats = EXCLUDED.eats,
                               cooks = EXCLUDED.cooks,
@@ -130,6 +131,7 @@ def create_or_update_food_entry(
                               eating_time = EXCLUDED.eating_time,
                               cooking_group_name = EXCLUDED.cooking_group_name,
                               cooking_group_id = EXCLUDED.cooking_group_id,
+                              updated_at = NOW(),
                               notes = EXCLUDED.notes
                 RETURNING id
                 """,
@@ -174,6 +176,7 @@ def get_food_entry_by_id(house_id: int, entry_id: int) -> dict:
                        fe.eating_time,
                        fe.cooking_group_id,
                        COALESCE(fe.cooking_group_name, lg.name) AS cooking_group_name,
+                       fe.updated_at,
                        fe.notes
                 FROM food_entries AS fe
                 JOIN people AS p ON p.id = fe.person_id
@@ -208,6 +211,7 @@ def get_food_entries_by_date_range(
                        fe.eating_time,
                        fe.cooking_group_id,
                        COALESCE(fe.cooking_group_name, lg.name) AS cooking_group_name,
+                       fe.updated_at,
                        fe.notes
                 FROM food_entries AS fe
                 JOIN people AS p ON p.id = fe.person_id

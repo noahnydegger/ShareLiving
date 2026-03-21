@@ -1,4 +1,4 @@
-from datetime import date, time
+from datetime import date, datetime, time
 from typing import List, Optional
 
 from pydantic import BaseModel
@@ -34,6 +34,7 @@ class FoodEntryResponse(BaseModel):
     eating_time: time
     cooking_group_id: Optional[int] = None
     cooking_group_name: Optional[str] = None
+    updated_at: datetime
     notes: Optional[str] = None
 
 
