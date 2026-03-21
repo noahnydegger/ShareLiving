@@ -2,6 +2,7 @@ const API_URL = "/homes/default";
 const HOUSE_TOKEN_KEY = "shareLiving.houseToken";
 const HOUSE_NAME_KEY = "shareLiving.houseName";
 const HOUSE_ID_KEY = "shareLiving.houseId";
+const ACTIVE_SECTION_KEY = "shareLiving.activeSection";
 
 let currentPeople = [];
 let currentLivingGroups = [];
@@ -58,6 +59,7 @@ function showSection(id) {
     const element = getElement(id);
     if (element) {
         element.style.display = "block";
+        setActiveSection(id);
     }
 
     if (id === "overview" && getHouseToken()) {
@@ -78,6 +80,11 @@ function getSelectedPersonStorageKey() {
     return houseId ? `shareLiving.selectedPerson.${houseId}` : "shareLiving.selectedPerson";
 }
 
+function getActiveSectionStorageKey() {
+    const houseId = getActiveHouseId();
+    return houseId ? `${ACTIVE_SECTION_KEY}.${houseId}` : ACTIVE_SECTION_KEY;
+}
+
 function getSelectedPersonId() {
     return localStorage.getItem(getSelectedPersonStorageKey()) || "";
 }
@@ -89,6 +96,18 @@ function setSelectedPersonId(personId) {
         return;
     }
     localStorage.setItem(key, String(personId));
+}
+
+function getActiveSection() {
+    return localStorage.getItem(getActiveSectionStorageKey()) || "home";
+}
+
+function setActiveSection(sectionId) {
+    localStorage.setItem(getActiveSectionStorageKey(), sectionId);
+}
+
+function clearActiveSection() {
+    localStorage.removeItem(getActiveSectionStorageKey());
 }
 
 function setAuthState(auth) {
@@ -130,13 +149,13 @@ function setAuthVisibility(isLoggedIn) {
     setElementDisplay("house-dashboard", isLoggedIn ? "block" : "none");
 }
 
-function fillPersonSelect(selectId, includeEmpty = false, emptyLabel = "Person auswählen") {
+function fillPersonSelect(selectId, includeEmpty = false, emptyLabel = "Person auswählen", preferredValue = null) {
     const select = getElement(selectId);
     if (!select) {
         return;
     }
 
-    const selectedValue = select.value || getSelectedPersonId();
+    const selectedValue = preferredValue ?? (select.value || getSelectedPersonId());
     select.innerHTML = "";
 
     if (includeEmpty) {
@@ -163,10 +182,11 @@ function fillPersonSelect(selectId, includeEmpty = false, emptyLabel = "Person a
 }
 
 function syncPersonSelectors() {
-    fillPersonSelect("current-person-select", true);
-    fillPersonSelect("laundry-person-select");
-    fillPersonSelect("food-person-select");
-    fillPersonSelect("guestroom-person-select");
+    const selectedPersonId = getSelectedPersonId();
+    fillPersonSelect("current-person-select", true, "Person auswählen", selectedPersonId);
+    fillPersonSelect("laundry-person-select", false, "Person auswählen", selectedPersonId);
+    fillPersonSelect("food-person-select", false, "Person auswählen", selectedPersonId);
+    fillPersonSelect("guestroom-person-select", false, "Person auswählen", selectedPersonId);
     renderGuestroomRoomOptions();
 }
 
@@ -348,7 +368,7 @@ async function handleSuccessfulAuth(auth) {
         return;
     }
     await renderActiveFoodViews();
-    showSection("home");
+    showSection(getActiveSection());
 }
 
 async function createHouse() {
@@ -415,6 +435,7 @@ async function loginHouse() {
 }
 
 function logoutHouse() {
+    clearActiveSection();
     setSelectedPersonId("");
     clearAuthState();
     currentPeople = [];
@@ -443,9 +464,7 @@ function handleCurrentPersonChange() {
         return;
     }
     setSelectedPersonId(select.value);
-    syncPersonSelectors();
-    renderPeople();
-    renderActiveFoodViews();
+    window.location.reload();
 }
 
 async function createLivingGroup() {
@@ -2178,7 +2197,6 @@ function initHomePage() {
     if (!homeSection) {
         return;
     }
-    showSection("home");
     setAuthVisibility(false);
     renderLivingGroups();
     renderPeople();
@@ -2187,6 +2205,7 @@ function initHomePage() {
     updatePersonFormUi();
     updateGuestRoomFormUi();
     syncPersonSelectors();
+    showSection(getHouseToken() ? getActiveSection() : "home");
 }
 
 function initGuestroomPage() {

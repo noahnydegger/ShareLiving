@@ -12,11 +12,24 @@
     <a href="#" data-auth-only style="display:none" onclick="showSection('overview')">Übersicht</a>
     <a href="#" data-auth-only style="display:none" onclick="showSection('food')">Essen</a>
     <a href="#" data-auth-only style="display:none" onclick="showSection('laundry')">Wäsche</a>
-    <a href="#" data-auth-only style="display:none" onclick="showSection('guestroom')">Gäste</a>
-    <a href="#" data-auth-only style="display:none" onclick="showSection('chores')">Ämtli</a>
-    <a href="#" data-auth-only style="display:none" onclick="showSection('defects')">Mängel</a>
+    <div class="nav-dropdown" data-auth-only style="display:none">
+        <button type="button" class="nav-dropdown-toggle">Mehr</button>
+        <div class="nav-dropdown-menu">
+            <a href="#" onclick="showSection('guestroom')">Gäste</a>
+            <a href="#" onclick="showSection('chores')">Ämtli</a>
+            <a href="#" onclick="showSection('defects')">Mängel</a>
+            <a href="#" onclick="showSection('events')">Events</a>
+        </div>
+    </div>
     <a href="#" onclick="showSection('help')">Hilfe</a>
     <span style="margin-left:auto"></span>
+    <div class="nav-current-person" data-auth-only style="display:none">
+        <label for="current-person-select">Aktuelle Person</label>
+        <select id="current-person-select" onchange="handleCurrentPersonChange()">
+            <option value="">Person auswählen</option>
+        </select>
+        <p id="current-person-status"></p>
+    </div>
     <button id="logout-button" data-auth-only style="display:none" onclick="logoutHouse()">Abmelden</button>
 </nav>
 
@@ -46,11 +59,6 @@
         <div class="panel">
             <h2>Aktuelles Haus</h2>
             <p id="active-house-label"></p>
-            <label for="current-person-select">Aktuelle Person</label>
-            <select id="current-person-select" onchange="handleCurrentPersonChange()">
-                <option value="">Person auswählen</option>
-            </select>
-            <p id="current-person-status"></p>
         </div>
 
         <div class="panel-grid">
@@ -298,7 +306,11 @@
     <h2>Mängel</h2>
 </section>
 
-<script src="main.js?v=20260319-1"></script>
+<section id="events" class="section-card" style="display:none">
+    <h2>Events</h2>
+</section>
+
+<script src="main.js?v=20260321-2"></script>
 </div>
 </body>
 </html>
