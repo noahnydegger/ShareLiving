@@ -135,6 +135,13 @@
                 <span class="switch-slider"></span>
             </span>
         </label>
+        <label class="switch-row">
+            <span>Meine Einträge</span>
+            <span class="switch">
+                <input id="overview-filter-mine" type="checkbox" onchange="renderOverviewCalendar()">
+                <span class="switch-slider"></span>
+            </span>
+        </label>
     </div>
 
     <div id="overview-calendar" class="overview-calendar"></div>
@@ -300,6 +307,71 @@
 
 <section id="chores" class="section-card" style="display:none">
     <h2>Ämtli</h2>
+    <div class="chores-actions">
+        <button type="button" onclick="showChoresManage()">Ämtli anpassen</button>
+        <button type="button" onclick="showChoresOverview()">Ämtli Übersicht</button>
+    </div>
+
+    <div id="chores-manage" style="display:none">
+        <div class="panel-grid">
+            <div class="panel">
+                <h3>Ämtli erfassen</h3>
+                <input id="chore-name" placeholder="Name des Ämtli">
+                <input id="chore-location" placeholder="Ort">
+                <input id="chore-frequency" placeholder="Häufigkeit">
+                <input id="chore-effort" type="number" min="0" step="0.25" placeholder="Stunden pro Woche">
+                <textarea id="chore-description" placeholder="Beschreibung"></textarea>
+                <button id="chore-save-button" type="button" onclick="saveChore()">Ämtli hinzufügen</button>
+                <button id="chore-cancel-button" type="button" style="display:none" onclick="resetChoreForm()">Abbrechen</button>
+                <p id="chore-manage-status"></p>
+            </div>
+
+            <div class="panel">
+                <h3>Bestehende Ämtli</h3>
+                <ul id="chores-list"></ul>
+            </div>
+        </div>
+
+        <div class="panel">
+            <h3>Ämtli zuteilen</h3>
+            <table id="chores-assign-table">
+                <thead>
+                    <tr>
+                        <th>Ämtli</th>
+                        <th>Ort</th>
+                        <th>Zuständig</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+            <p id="chore-assign-status"></p>
+        </div>
+    </div>
+
+    <div id="chores-overview" style="display:none">
+        <div class="overview-filters">
+            <label class="switch-row">
+                <span>Meine Ämtli</span>
+                <span class="switch">
+                    <input id="chores-mine-toggle" type="checkbox" onchange="renderChoresOverview()">
+                    <span class="switch-slider"></span>
+                </span>
+            </label>
+        </div>
+        <table id="chores-overview-table">
+            <thead>
+                <tr>
+                    <th>Ämtli</th>
+                    <th>Ort</th>
+                    <th>Häufigkeit</th>
+                    <th>Aufwand</th>
+                    <th>Zuständig</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+        <p id="chores-overview-status"></p>
+    </div>
 </section>
 
 <section id="defects" class="section-card" style="display:none">
@@ -310,7 +382,7 @@
     <h2>Events</h2>
 </section>
 
-<script src="main.js?v=20260321-2"></script>
+<script src="main.js?v=20260321-3"></script>
 </div>
 </body>
 </html>

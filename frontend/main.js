@@ -7,6 +7,7 @@ const ACTIVE_SECTION_KEY = "shareLiving.activeSection";
 let currentPeople = [];
 let currentLivingGroups = [];
 let currentGuestRooms = [];
+let currentChores = [];
 let currentFoodAddWeekStart = getMonday(new Date());
 let currentFoodSummaryWeekStart = getMonday(new Date());
 let currentOverviewView = "week";
@@ -22,6 +23,7 @@ let currentGuestroomOffset = 0;
 let editingLivingGroupId = null;
 let editingPersonId = null;
 let editingGuestRoomId = null;
+let editingChoreId = null;
 let livingGroupEditMode = false;
 let personEditMode = false;
 let guestRoomEditMode = false;
@@ -64,6 +66,9 @@ function showSection(id) {
 
     if (id === "overview" && getHouseToken()) {
         loadOverviewData();
+    }
+    if (id === "chores" && getHouseToken()) {
+        showChoresManage();
     }
 }
 
@@ -340,6 +345,8 @@ async function loadHouseData() {
     renderLivingGroups();
     renderPeople();
     renderGuestRooms();
+    renderChoreAssignments();
+    renderChoresOverview();
     syncPersonSelectors();
 
     const selectedPersonId = getSelectedPersonId();
@@ -441,9 +448,11 @@ function logoutHouse() {
     currentPeople = [];
     currentLivingGroups = [];
     currentGuestRooms = [];
+    currentChores = [];
     editingLivingGroupId = null;
     editingPersonId = null;
     editingGuestRoomId = null;
+    editingChoreId = null;
     livingGroupEditMode = false;
     personEditMode = false;
     guestRoomEditMode = false;
@@ -451,9 +460,13 @@ function logoutHouse() {
     renderLivingGroups();
     renderPeople();
     renderGuestRooms();
+    renderChoresList();
+    renderChoreAssignments();
+    renderChoresOverview();
     updateLivingGroupFormUi();
     updatePersonFormUi();
     updateGuestRoomFormUi();
+    updateChoreFormUi();
     syncPersonSelectors();
     showSection("home");
 }
@@ -850,6 +863,319 @@ async function deleteGuestRoom(guestRoomId) {
     await loadHouseData();
 }
 
+function showChoresManage() {
+    setElementDisplay("chores-manage", "block");
+    setElementDisplay("chores-overview", "none");
+    if (getHouseToken()) {
+        loadChores();
+    }
+    updateChoreFormUi();
+}
+
+function showChoresOverview() {
+    setElementDisplay("chores-manage", "none");
+    setElementDisplay("chores-overview", "block");
+    if (getHouseToken()) {
+        loadChores();
+    }
+}
+
+function formatChoreLabel(chore) {
+    const details = [chore.location, chore.frequency].filter(Boolean);
+    return details.length ? `${chore.name} (${details.join(", ")})` : chore.name;
+}
+
+function formatChoreEffort(effort) {
+    if (effort === null || effort === undefined || effort === "") {
+        return "";
+    }
+    return `${Number(effort)} h/Woche`;
+}
+
+function buildPersonOptions(selectedValue = "") {
+    const selected = String(selectedValue || "");
+    let options = '<option value="">Nicht zugeteilt</option>';
+    currentPeople.forEach((person) => {
+        const isSelected = String(person.id) === selected ? " selected" : "";
+        options += `<option value="${person.id}"${isSelected}>${person.name}</option>`;
+    });
+    return options;
+}
+
+function renderChoresList() {
+    const list = getElement("chores-list");
+    const status = getElement("chore-manage-status");
+    if (!list) {
+        return;
+    }
+    list.innerHTML = "";
+
+    if (!currentChores.length) {
+        list.innerHTML = "<li>Noch keine Ämtli.</li>";
+        if (status) {
+            status.innerText = status.innerText || "";
+        }
+        return;
+    }
+
+    currentChores.forEach((chore) => {
+        const item = document.createElement("li");
+        item.innerHTML = `
+            <span>${formatChoreLabel(chore)}</span>
+            <span class="inline-actions">
+                <button type="button" onclick="editChoreById(${chore.id})">Bearbeiten</button>
+                <button type="button" onclick="deleteChore(${chore.id})">Löschen</button>
+            </span>
+        `;
+        list.appendChild(item);
+    });
+}
+
+function renderChoreAssignments() {
+    const tableBody = getOptionalElement("#chores-assign-table tbody");
+    const status = getElement("chore-assign-status");
+    if (!tableBody || !status) {
+        return;
+    }
+    tableBody.innerHTML = "";
+
+    if (!currentChores.length) {
+        status.innerText = "Erstelle zuerst mindestens ein Ämtli.";
+        return;
+    }
+    if (!currentPeople.length) {
+        status.innerText = "Erstelle zuerst mindestens eine Person.";
+        return;
+    }
+
+    status.innerText = "";
+    currentChores.forEach((chore) => {
+        const row = document.createElement("tr");
+        row.innerHTML = `
+            <td>${chore.name}</td>
+            <td>${chore.location || ""}</td>
+            <td>
+                <select onchange="assignChoreToPerson(${chore.id}, this.value)">
+                    ${buildPersonOptions(chore.assigned_person_id)}
+                </select>
+            </td>
+        `;
+        tableBody.appendChild(row);
+    });
+}
+
+function renderChoresOverview() {
+    const tableBody = getOptionalElement("#chores-overview-table tbody");
+    const status = getElement("chores-overview-status");
+    const mineToggle = getElement("chores-mine-toggle");
+    if (!tableBody || !status || !mineToggle) {
+        return;
+    }
+    tableBody.innerHTML = "";
+
+    const selectedPersonId = getSelectedPersonId();
+    const visibleChores = mineToggle.checked && selectedPersonId
+        ? currentChores.filter((chore) => String(chore.assigned_person_id || "") === String(selectedPersonId))
+        : currentChores;
+
+    if (!visibleChores.length) {
+        status.innerText = mineToggle.checked ? "Keine Ämtli für die aktuelle Person." : "Noch keine Ämtli vorhanden.";
+        return;
+    }
+
+    status.innerText = "";
+    visibleChores.forEach((chore) => {
+        const row = document.createElement("tr");
+        row.innerHTML = `
+            <td>${chore.name}</td>
+            <td>${chore.location || ""}</td>
+            <td>${chore.frequency || ""}</td>
+            <td>${formatChoreEffort(chore.effort)}</td>
+            <td>${chore.assigned_person_name || "Nicht zugeteilt"}</td>
+        `;
+        tableBody.appendChild(row);
+    });
+}
+
+function updateChoreFormUi() {
+    const saveButton = getElement("chore-save-button");
+    const cancelButton = getElement("chore-cancel-button");
+    if (saveButton) {
+        saveButton.innerText = editingChoreId ? "Änderungen speichern" : "Ämtli hinzufügen";
+    }
+    if (cancelButton) {
+        cancelButton.style.display = editingChoreId ? "inline-block" : "none";
+    }
+}
+
+function resetChoreForm() {
+    editingChoreId = null;
+    const nameInput = getElement("chore-name");
+    const locationInput = getElement("chore-location");
+    const frequencyInput = getElement("chore-frequency");
+    const effortInput = getElement("chore-effort");
+    const descriptionInput = getElement("chore-description");
+    const status = getElement("chore-manage-status");
+    if (nameInput) {
+        nameInput.value = "";
+    }
+    if (locationInput) {
+        locationInput.value = "";
+    }
+    if (frequencyInput) {
+        frequencyInput.value = "";
+    }
+    if (effortInput) {
+        effortInput.value = "";
+    }
+    if (descriptionInput) {
+        descriptionInput.value = "";
+    }
+    if (status) {
+        status.innerText = "";
+    }
+    updateChoreFormUi();
+}
+
+function editChoreById(choreId) {
+    const chore = currentChores.find((entry) => entry.id === choreId);
+    const nameInput = getElement("chore-name");
+    const locationInput = getElement("chore-location");
+    const frequencyInput = getElement("chore-frequency");
+    const effortInput = getElement("chore-effort");
+    const descriptionInput = getElement("chore-description");
+    const status = getElement("chore-manage-status");
+    if (!chore || !nameInput || !locationInput || !frequencyInput || !effortInput || !descriptionInput || !status) {
+        return;
+    }
+    editingChoreId = choreId;
+    nameInput.value = chore.name;
+    locationInput.value = chore.location || "";
+    frequencyInput.value = chore.frequency || "";
+    effortInput.value = chore.effort ?? "";
+    descriptionInput.value = chore.description || "";
+    status.innerText = "Ämtli bearbeiten.";
+    updateChoreFormUi();
+}
+
+async function loadChores() {
+    const response = await apiFetch("/api/chores");
+    const manageStatus = getElement("chore-manage-status");
+    const assignStatus = getElement("chore-assign-status");
+    const overviewStatus = getElement("chores-overview-status");
+    if (!response.ok) {
+        if (manageStatus) {
+            manageStatus.innerText = "Ämtli konnten nicht geladen werden.";
+        }
+        if (assignStatus) {
+            assignStatus.innerText = "Ämtli konnten nicht geladen werden.";
+        }
+        if (overviewStatus) {
+            overviewStatus.innerText = "Ämtli konnten nicht geladen werden.";
+        }
+        return;
+    }
+
+    currentChores = await response.json();
+    renderChoresList();
+    renderChoreAssignments();
+    renderChoresOverview();
+}
+
+async function saveChore() {
+    const nameInput = getElement("chore-name");
+    const locationInput = getElement("chore-location");
+    const frequencyInput = getElement("chore-frequency");
+    const effortInput = getElement("chore-effort");
+    const descriptionInput = getElement("chore-description");
+    const status = getElement("chore-manage-status");
+    if (!nameInput || !locationInput || !frequencyInput || !effortInput || !descriptionInput || !status) {
+        return;
+    }
+
+    const effortValue = effortInput.value.trim();
+    const payload = {
+        name: nameInput.value.trim(),
+        location: locationInput.value.trim() || null,
+        frequency: frequencyInput.value.trim() || null,
+        effort: effortValue ? Number(effortValue) : null,
+        description: descriptionInput.value.trim() || null,
+    };
+
+    if (!payload.name) {
+        status.innerText = "Bitte einen Namen für das Ämtli eingeben.";
+        return;
+    }
+    if (effortValue && Number.isNaN(payload.effort)) {
+        status.innerText = "Bitte einen gültigen Aufwand eingeben.";
+        return;
+    }
+
+    const response = await apiFetch(
+        editingChoreId ? `/api/chores/${editingChoreId}` : "/api/chores",
+        {
+            method: editingChoreId ? "PUT" : "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+        },
+    );
+
+    if (!response.ok) {
+        const error = await response.text();
+        status.innerText = `Ämtli konnte nicht gespeichert werden: ${error}`;
+        return;
+    }
+
+    status.innerText = editingChoreId ? "Ämtli aktualisiert." : "Ämtli hinzugefügt.";
+    resetChoreForm();
+    await loadChores();
+}
+
+async function deleteChore(choreId) {
+    const status = getElement("chore-manage-status");
+    if (!window.confirm("Ämtli wirklich löschen?")) {
+        return;
+    }
+
+    const response = await apiFetch(`/api/chores/${choreId}`, { method: "DELETE" });
+    if (!response.ok) {
+        const error = await response.text();
+        if (status) {
+            status.innerText = `Ämtli konnte nicht gelöscht werden: ${error}`;
+        }
+        return;
+    }
+
+    if (editingChoreId === choreId) {
+        resetChoreForm();
+    }
+    await loadChores();
+}
+
+async function assignChoreToPerson(choreId, personIdValue) {
+    const status = getElement("chore-assign-status");
+    const response = await apiFetch(`/api/chores/${choreId}/assign`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+            person_id: personIdValue ? Number(personIdValue) : null,
+        }),
+    });
+
+    if (!response.ok) {
+        const error = await response.text();
+        if (status) {
+            status.innerText = `Ämtli konnte nicht zugeteilt werden: ${error}`;
+        }
+        return;
+    }
+
+    if (status) {
+        status.innerText = "Ämtli aktualisiert.";
+    }
+    await loadChores();
+}
+
 function pad2(value) {
     return String(value).padStart(2, "0");
 }
@@ -957,11 +1283,13 @@ function getOverviewFilterState() {
         food: getElement("overview-filter-food")?.checked ?? true,
         laundry: getElement("overview-filter-laundry")?.checked ?? true,
         guestroom: getElement("overview-filter-guestroom")?.checked ?? true,
+        mine: getElement("overview-filter-mine")?.checked ?? false,
     };
 }
 
 function getOverviewEventsForDate(dateValue) {
     const filters = getOverviewFilterState();
+    const selectedPersonId = getSelectedPersonId();
     return currentOverviewEvents.filter((event) => {
         if (event.date !== dateValue) {
             return false;
@@ -969,10 +1297,19 @@ function getOverviewEventsForDate(dateValue) {
         if (event.type === "food" && !filters.food) {
             return false;
         }
+        if (event.type === "food" && filters.mine && selectedPersonId && !event.personIds.includes(String(selectedPersonId))) {
+            return false;
+        }
         if (event.type === "laundry" && !filters.laundry) {
             return false;
         }
+        if (event.type === "laundry" && filters.mine && selectedPersonId && !event.personIds.includes(String(selectedPersonId))) {
+            return false;
+        }
         if (event.type === "guestroom" && !filters.guestroom) {
+            return false;
+        }
+        if (event.type === "guestroom" && filters.mine && selectedPersonId && !event.personIds.includes(String(selectedPersonId))) {
             return false;
         }
         return true;
@@ -992,10 +1329,12 @@ function buildFoodEvents(foodEntries) {
                 cookingGroupName: entry.cooking_group_name || "Ganzes Haus",
                 cooks: [],
                 totalPeople: 0,
+                personIds: new Set(),
             });
         }
 
         const item = groupedEntries.get(key);
+        item.personIds.add(String(entry.person_id));
         if (entry.cooks) {
             item.cooks.push(entry.person_name);
         }
@@ -1009,6 +1348,7 @@ function buildFoodEvents(foodEntries) {
         date: entry.date,
         title: `${formatMealLabel(entry.mealType)} · ${entry.cookingGroupName}`,
         subtitle: `${entry.cooks.length ? entry.cooks.join(", ") : "Kein Koch"} · ${entry.totalPeople} Personen`,
+        personIds: Array.from(entry.personIds),
     }));
 }
 
@@ -1018,6 +1358,7 @@ function buildLaundryEvents(laundryEntries) {
         date: entry.date,
         title: `${entry.start_time.slice(0, 5)}–${entry.end_time.slice(0, 5)}`,
         subtitle: entry.person_name,
+        personIds: [String(entry.person_id)],
     }));
 }
 
@@ -1053,6 +1394,7 @@ function buildGuestroomEvents(guestroomEntries, startDate, endDate) {
                 date: formatDate(cursor),
                 title: entry.guest_name,
                 subtitle: "",
+                personIds: [String(entry.person_id)],
             });
             cursor = addDays(cursor, 1);
         }
@@ -2192,6 +2534,20 @@ function initOverviewPage() {
     renderOverviewCalendar();
 }
 
+function initChoresPage() {
+    const choresSection = getElement("chores");
+    const choresManage = getElement("chores-manage");
+    const choresOverview = getElement("chores-overview");
+    if (!choresSection || !choresManage || !choresOverview) {
+        return;
+    }
+    setElementDisplay("chores-manage", "block");
+    setElementDisplay("chores-overview", "none");
+    if (getHouseToken()) {
+        loadChores();
+    }
+}
+
 function initHomePage() {
     const homeSection = getElement("home");
     if (!homeSection) {
@@ -2201,9 +2557,13 @@ function initHomePage() {
     renderLivingGroups();
     renderPeople();
     renderGuestRooms();
+    renderChoresList();
+    renderChoreAssignments();
+    renderChoresOverview();
     updateLivingGroupFormUi();
     updatePersonFormUi();
     updateGuestRoomFormUi();
+    updateChoreFormUi();
     syncPersonSelectors();
     showSection(getHouseToken() ? getActiveSection() : "home");
 }
@@ -2235,6 +2595,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     initFoodPage();
     initOverviewPage();
     initGuestroomPage();
+    initChoresPage();
 
     if (getHouseToken()) {
         applyLoggedInState();

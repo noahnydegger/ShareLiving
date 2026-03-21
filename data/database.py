@@ -200,6 +200,84 @@ def init_db():
                 ON guest_rooms (house_id, LOWER(name))
                 """
             )
+            cur.execute(
+                """
+                CREATE TABLE IF NOT EXISTS chores (
+                    id SERIAL PRIMARY KEY,
+                    house_id INTEGER NOT NULL REFERENCES houses(id),
+                    name TEXT NOT NULL,
+                    location TEXT NULL,
+                    frequency TEXT NULL,
+                    effort DOUBLE PRECISION NULL,
+                    description TEXT NULL,
+                    assigned_person_id INTEGER NULL REFERENCES people(id)
+                )
+                """
+            )
+            cur.execute(
+                """
+                ALTER TABLE chores
+                ADD COLUMN IF NOT EXISTS location TEXT NULL
+                """
+            )
+            cur.execute(
+                """
+                ALTER TABLE chores
+                ADD COLUMN IF NOT EXISTS frequency TEXT NULL
+                """
+            )
+            cur.execute(
+                """
+                ALTER TABLE chores
+                ADD COLUMN IF NOT EXISTS effort DOUBLE PRECISION NULL
+                """
+            )
+            cur.execute(
+                """
+                ALTER TABLE chores
+                ADD COLUMN IF NOT EXISTS description TEXT NULL
+                """
+            )
+            cur.execute(
+                """
+                ALTER TABLE chores
+                ADD COLUMN IF NOT EXISTS assigned_person_id INTEGER NULL
+                """
+            )
+            cur.execute(
+                """
+                DO $$
+                BEGIN
+                    IF NOT EXISTS (
+                        SELECT 1 FROM pg_constraint
+                        WHERE conname = 'chores_assigned_person_id_fkey'
+                    ) THEN
+                        ALTER TABLE chores
+                        ADD CONSTRAINT chores_assigned_person_id_fkey
+                        FOREIGN KEY (assigned_person_id) REFERENCES people(id);
+                    END IF;
+                END
+                $$;
+                """
+            )
+            cur.execute(
+                """
+                CREATE UNIQUE INDEX IF NOT EXISTS chores_house_name_idx
+                ON chores (house_id, LOWER(name))
+                """
+            )
+            cur.execute(
+                """
+                CREATE INDEX IF NOT EXISTS chores_house_id_idx
+                ON chores (house_id)
+                """
+            )
+            cur.execute(
+                """
+                CREATE INDEX IF NOT EXISTS chores_assigned_person_id_idx
+                ON chores (assigned_person_id)
+                """
+            )
 
             # Users table
             cur.execute(
