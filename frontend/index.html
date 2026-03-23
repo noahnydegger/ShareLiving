@@ -112,14 +112,14 @@
         <label class="switch-row">
             <span>Wäsche</span>
             <span class="switch">
-                <input id="overview-filter-laundry" type="checkbox" checked onchange="renderOverviewCalendar()">
+                <input id="overview-filter-laundry" type="checkbox" onchange="renderOverviewCalendar()">
                 <span class="switch-slider"></span>
             </span>
         </label>
         <label class="switch-row">
             <span>Gäste</span>
             <span class="switch">
-                <input id="overview-filter-guestroom" type="checkbox" checked onchange="renderOverviewCalendar()">
+                <input id="overview-filter-guestroom" type="checkbox" onchange="renderOverviewCalendar()">
                 <span class="switch-slider"></span>
             </span>
         </label>
@@ -212,12 +212,12 @@
                 <tr>
                     <th>Datum</th>
                     <th>Isst</th>
-                    <th>Reste</th>
+                    <th>Reste für Folgetag</th>
                     <th>Kocht</th>
                     <th>Hilft</th>
                     <th>Gäste</th>
                     <th>Zeit</th>
-                    <th>Gruppe</th>
+                    <th>Stock</th>
                 </tr>
             </thead>
             <tbody></tbody>
@@ -242,12 +242,13 @@
                 </span>
             </label>
         </div>
+        <p>Anzeige Personen: zuerst Personen auf diesem Stock, dann Personen und Reste auf anderem Stock, danach das Total.</p>
         <table id="food-summary-table">
             <thead>
                 <tr>
                     <th>Datum</th>
                     <th>Zeit</th>
-                    <th>Gruppe</th>
+                    <th>Stock</th>
                     <th>Koch</th>
                     <th>Helfer</th>
                     <th>Personen</th>
