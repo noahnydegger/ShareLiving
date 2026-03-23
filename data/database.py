@@ -278,6 +278,158 @@ def init_db():
                 ON chores (assigned_person_id)
                 """
             )
+            cur.execute(
+                """
+                CREATE TABLE IF NOT EXISTS defects (
+                    id SERIAL PRIMARY KEY,
+                    house_id INTEGER NOT NULL REFERENCES houses(id),
+                    person_id INTEGER NOT NULL REFERENCES people(id),
+                    room TEXT NOT NULL,
+                    room_location TEXT NOT NULL,
+                    description TEXT NOT NULL,
+                    damage_source TEXT NOT NULL,
+                    resolution_type TEXT NOT NULL,
+                    photo_available BOOLEAN NOT NULL DEFAULT FALSE,
+                    photo_link TEXT NULL,
+                    reported_date DATE NOT NULL,
+                    officially_resolved BOOLEAN NOT NULL DEFAULT FALSE,
+                    created_at TIMESTAMP NOT NULL DEFAULT NOW()
+                )
+                """
+            )
+            cur.execute(
+                """
+                ALTER TABLE defects
+                ADD COLUMN IF NOT EXISTS photo_link TEXT NULL
+                """
+            )
+            cur.execute(
+                """
+                ALTER TABLE defects
+                ADD COLUMN IF NOT EXISTS officially_resolved BOOLEAN NOT NULL DEFAULT FALSE
+                """
+            )
+            cur.execute(
+                """
+                ALTER TABLE defects
+                ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT NOW()
+                """
+            )
+            cur.execute(
+                """
+                ALTER TABLE defects
+                DROP CONSTRAINT IF EXISTS defects_damage_source_check
+                """
+            )
+            cur.execute(
+                """
+                ALTER TABLE defects
+                ADD CONSTRAINT defects_damage_source_check
+                CHECK (damage_source IN ('existing', 'self_caused'))
+                """
+            )
+            cur.execute(
+                """
+                ALTER TABLE defects
+                DROP CONSTRAINT IF EXISTS defects_resolution_type_check
+                """
+            )
+            cur.execute(
+                """
+                ALTER TABLE defects
+                ADD CONSTRAINT defects_resolution_type_check
+                CHECK (resolution_type IN ('must_fix', 'must_record'))
+                """
+            )
+            cur.execute(
+                """
+                CREATE INDEX IF NOT EXISTS defects_house_id_idx
+                ON defects (house_id)
+                """
+            )
+            cur.execute(
+                """
+                CREATE INDEX IF NOT EXISTS defects_person_id_idx
+                ON defects (person_id)
+                """
+            )
+            cur.execute(
+                """
+                CREATE INDEX IF NOT EXISTS defects_reported_date_idx
+                ON defects (reported_date)
+                """
+            )
+            cur.execute(
+                """
+                CREATE TABLE IF NOT EXISTS feedback (
+                    id SERIAL PRIMARY KEY,
+                    house_id INTEGER NOT NULL REFERENCES houses(id),
+                    person_id INTEGER NOT NULL REFERENCES people(id),
+                    area TEXT NOT NULL,
+                    feedback_type TEXT NOT NULL,
+                    description TEXT NOT NULL,
+                    priority TEXT NOT NULL DEFAULT 'medium',
+                    resolved BOOLEAN NOT NULL DEFAULT FALSE,
+                    created_at TIMESTAMP NOT NULL DEFAULT NOW()
+                )
+                """
+            )
+            cur.execute(
+                """
+                ALTER TABLE feedback
+                ADD COLUMN IF NOT EXISTS priority TEXT NOT NULL DEFAULT 'medium'
+                """
+            )
+            cur.execute(
+                """
+                ALTER TABLE feedback
+                ADD COLUMN IF NOT EXISTS resolved BOOLEAN NOT NULL DEFAULT FALSE
+                """
+            )
+            cur.execute(
+                """
+                ALTER TABLE feedback
+                ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT NOW()
+                """
+            )
+            cur.execute(
+                """
+                ALTER TABLE feedback
+                DROP CONSTRAINT IF EXISTS feedback_feedback_type_check
+                """
+            )
+            cur.execute(
+                """
+                ALTER TABLE feedback
+                ADD CONSTRAINT feedback_feedback_type_check
+                CHECK (feedback_type IN ('bug', 'idea'))
+                """
+            )
+            cur.execute(
+                """
+                ALTER TABLE feedback
+                DROP CONSTRAINT IF EXISTS feedback_priority_check
+                """
+            )
+            cur.execute(
+                """
+                ALTER TABLE feedback
+                ADD CONSTRAINT feedback_priority_check
+                CHECK (priority IN ('high', 'medium', 'low'))
+                """
+            )
+            cur.execute(
+                """
+                CREATE INDEX IF NOT EXISTS feedback_house_id_idx
+                ON feedback (house_id)
+                """
+            )
+            cur.execute(
+                """
+                CREATE INDEX IF NOT EXISTS feedback_person_id_idx
+                ON feedback (person_id)
+                """
+            )
 
             # Users table
             cur.execute(

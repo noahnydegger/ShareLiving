@@ -324,6 +324,72 @@ ul {
     margin-left: 0.75rem;
 }
 
+.checkbox-row {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.6rem;
+    margin-bottom: 0.75rem;
+}
+
+.filter-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.85rem;
+    margin-bottom: 1rem;
+}
+
+.segmented-control {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    padding: 0.35rem;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--surface-soft);
+}
+
+.segmented-control button {
+    min-height: 2.4rem;
+    padding: 0.5rem 0.95rem;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--text-muted);
+    box-shadow: none;
+}
+
+.segmented-control button.is-active {
+    background: var(--accent);
+    color: #fff;
+    box-shadow: 0 8px 18px rgba(37, 99, 235, 0.18);
+}
+
+.inline-field {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.6rem;
+}
+
+.expandable-row {
+    cursor: pointer;
+}
+
+.description-preview {
+    display: block;
+}
+
+.description-full {
+    display: none;
+    margin-top: 0.4rem;
+    color: var(--text-muted);
+    white-space: normal;
+}
+
+.expandable-row.is-expanded .description-full {
+    display: block;
+}
+
 .overview-toolbar {
     display: flex;
     flex-wrap: wrap;

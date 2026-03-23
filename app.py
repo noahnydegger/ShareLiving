@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from routers import chores, food, guestroom, house, laundry, people
+from routers import chores, defects, feedback, food, guestroom, house, laundry, people
 from data.database import init_db
 
 
@@ -45,6 +45,8 @@ app.include_router(laundry.router, prefix="/homes/default")
 app.include_router(food.router, prefix="/homes/default")
 app.include_router(guestroom.router, prefix="/homes/default")
 app.include_router(chores.router, prefix="/homes/default")
+app.include_router(defects.router, prefix="/homes/default")
+app.include_router(feedback.router, prefix="/homes/default")
 app.include_router(house.router, prefix="/homes/default")
 app.include_router(people.router, prefix="/homes/default")
 

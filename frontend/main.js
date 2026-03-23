@@ -7,6 +7,8 @@ const ACTIVE_SECTION_KEY = "shareLiving.activeSection";
 let currentPeople = [];
 let currentGuestRooms = [];
 let currentChores = [];
+let currentDefects = [];
+let currentFeedback = [];
 let currentFoodAddWeekStart = getMonday(new Date());
 let currentFoodSummaryWeekStart = getMonday(new Date());
 let currentOverviewView = "week";
@@ -17,11 +19,17 @@ let editingLaundryBookingId = null;
 let editingGuestroomBookingId = null;
 let currentLaundryBookings = [];
 let currentGuestroomBookings = [];
+let currentLaundryListEntries = [];
+let currentGuestroomListEntries = [];
 let currentLaundryOffset = 0;
 let currentGuestroomOffset = 0;
 let editingPersonId = null;
 let editingGuestRoomId = null;
 let editingChoreId = null;
+let currentDefectFilter = "all";
+let currentFeedbackFilter = "all";
+let expandedDefectIds = new Set();
+let expandedFeedbackIds = new Set();
 let livingGroupEditMode = false;
 let personEditMode = false;
 let guestRoomEditMode = false;
@@ -88,6 +96,12 @@ function showSection(id) {
     }
     if (id === "chores" && getHouseToken()) {
         showChoresManage();
+    }
+    if (id === "defects" && getHouseToken()) {
+        showDefectAdd();
+    }
+    if (id === "feedback" && getHouseToken()) {
+        showFeedbackAdd();
     }
 }
 
@@ -209,6 +223,8 @@ function syncPersonSelectors() {
     fillPersonSelect("laundry-person-select", false, "Person auswählen", selectedPersonId);
     fillPersonSelect("food-person-select", false, "Person auswählen", selectedPersonId);
     fillPersonSelect("guestroom-person-select", false, "Person auswählen", selectedPersonId);
+    fillPersonSelect("defect-person-select", false, "Person auswählen", selectedPersonId);
+    fillPersonSelect("feedback-person-select", false, "Person auswählen", selectedPersonId);
     renderGuestroomRoomOptions();
 }
 
@@ -311,6 +327,8 @@ async function loadHouseData() {
     renderGuestRooms();
     renderChoreAssignments();
     renderChoresOverview();
+    renderDefectsList();
+    renderFeedbackList();
     syncPersonSelectors();
 
     const selectedPersonId = getSelectedPersonId();
@@ -412,6 +430,12 @@ function logoutHouse() {
     currentPeople = [];
     currentGuestRooms = [];
     currentChores = [];
+    currentDefects = [];
+    currentFeedback = [];
+    currentDefectFilter = "all";
+    currentFeedbackFilter = "all";
+    expandedDefectIds = new Set();
+    expandedFeedbackIds = new Set();
     editingPersonId = null;
     editingGuestRoomId = null;
     editingChoreId = null;
@@ -423,6 +447,8 @@ function logoutHouse() {
     renderChoresList();
     renderChoreAssignments();
     renderChoresOverview();
+    renderDefectsList();
+    renderFeedbackList();
     updatePersonFormUi();
     updateGuestRoomFormUi();
     updateChoreFormUi();
@@ -481,7 +507,7 @@ function updatePersonFormUi() {
         cancelButton.style.display = editingPersonId ? "inline-block" : "none";
     }
     if (editToggle) {
-        editToggle.innerText = personEditMode ? "Fertig" : "Edit Personen";
+        editToggle.innerText = personEditMode ? "Fertig" : "Personen bearbeiten";
     }
 }
 
@@ -606,7 +632,7 @@ function updateGuestRoomFormUi() {
         cancelButton.style.display = editingGuestRoomId ? "inline-block" : "none";
     }
     if (editToggle) {
-        editToggle.innerText = guestRoomEditMode ? "Fertig" : "Edit Gästezimmer";
+        editToggle.innerText = guestRoomEditMode ? "Fertig" : "Gästezimmer bearbeiten";
     }
 }
 
@@ -1001,6 +1027,445 @@ async function assignChoreToPerson(choreId, personIdValue) {
         status.innerText = "Ämtli aktualisiert.";
     }
     await loadChores();
+}
+
+function formatDefectCode(defectId) {
+    return `M-${String(defectId).padStart(4, "0")}`;
+}
+
+function formatDescriptionPreview(description) {
+    const words = String(description || "").trim().split(/\s+/).filter(Boolean);
+    if (words.length <= 2) {
+        return words.join(" ");
+    }
+    return `${words.slice(0, 2).join(" ")} ...`;
+}
+
+function escapeHtml(value) {
+    return String(value ?? "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#39;");
+}
+
+function updateSegmentedControlState(buttonIds, activeId) {
+    buttonIds.forEach((buttonId) => {
+        const button = getElement(buttonId);
+        if (button) {
+            button.classList.toggle("is-active", buttonId === activeId);
+        }
+    });
+}
+
+function updateDefectPhotoLinkVisibility() {
+    const checkbox = getElement("defect-photo-available");
+    const linkInput = getElement("defect-photo-link");
+    if (!checkbox || !linkInput) {
+        return;
+    }
+    linkInput.style.display = checkbox.checked ? "block" : "none";
+    if (!checkbox.checked) {
+        linkInput.value = "";
+    }
+}
+
+function showDefectAdd() {
+    setElementDisplay("defects-add", "block");
+    setElementDisplay("defects-list", "none");
+    syncPersonSelectors();
+    const reportedDateInput = getElement("defect-reported-date");
+    if (reportedDateInput && !reportedDateInput.value) {
+        reportedDateInput.value = formatDate(new Date());
+    }
+    updateDefectPhotoLinkVisibility();
+}
+
+function showDefectList() {
+    setElementDisplay("defects-add", "none");
+    setElementDisplay("defects-list", "block");
+    loadDefects();
+}
+
+function setDefectFilter(filterValue) {
+    currentDefectFilter = filterValue;
+    updateSegmentedControlState(
+        ["defects-filter-all", "defects-filter-open", "defects-filter-mine"],
+        `defects-filter-${filterValue}`,
+    );
+    renderDefectsList();
+}
+
+function getVisibleDefects() {
+    const selectedPersonId = getSelectedPersonId();
+    return currentDefectFilter === "open"
+        ? currentDefects.filter((defect) => !defect.officially_resolved)
+        : currentDefectFilter === "mine" && selectedPersonId
+            ? currentDefects.filter((defect) => String(defect.person_id) === String(selectedPersonId))
+            : currentDefects;
+}
+
+function renderDefectsList() {
+    const tableBody = getOptionalElement("#defects-table tbody");
+    const status = getElement("defects-list-status");
+    if (!tableBody || !status) {
+        return;
+    }
+    tableBody.innerHTML = "";
+    const visibleDefects = getVisibleDefects();
+
+    if (!visibleDefects.length) {
+        status.innerText = currentDefectFilter === "mine"
+            ? "Keine Mängel für die aktuelle Person."
+            : currentDefectFilter === "open"
+                ? "Keine offenen Mängel."
+                : "Noch keine Mängel vorhanden.";
+        return;
+    }
+
+    status.innerText = "";
+    visibleDefects.forEach((defect) => {
+        const row = document.createElement("tr");
+        row.className = "expandable-row";
+        if (expandedDefectIds.has(defect.id)) {
+            row.classList.add("is-expanded");
+        }
+        const description = String(defect.description || "");
+        row.innerHTML = `
+            <td>${escapeHtml(defect.room)}</td>
+            <td>${escapeHtml(defect.room_location)}</td>
+            <td title="${escapeHtml(description)}">
+                <span class="description-preview">${escapeHtml(formatDescriptionPreview(description))}</span>
+                <span class="description-full">${escapeHtml(description)}</span>
+            </td>
+            <td>${escapeHtml(defect.person_name)}</td>
+            <td>${defect.photo_available ? "Ja" : "Nein"}</td>
+            <td>
+                <input type="checkbox" ${defect.officially_resolved ? "checked" : ""} onchange="toggleDefectResolved(${defect.id}, this.checked)">
+            </td>
+            <td>${formatDefectCode(defect.id)}</td>
+        `;
+        row.addEventListener("click", (event) => {
+            if (event.target.closest("input, button, select, label")) {
+                return;
+            }
+            if (expandedDefectIds.has(defect.id)) {
+                expandedDefectIds.delete(defect.id);
+                row.classList.remove("is-expanded");
+            } else {
+                expandedDefectIds.add(defect.id);
+                row.classList.add("is-expanded");
+            }
+        });
+        tableBody.appendChild(row);
+    });
+}
+
+async function loadDefects() {
+    const response = await apiFetch("/api/defects");
+    const addStatus = getElement("defect-add-status");
+    const listStatus = getElement("defects-list-status");
+    if (!response.ok) {
+        if (addStatus) {
+            addStatus.innerText = "Mängel konnten nicht geladen werden.";
+        }
+        if (listStatus) {
+            listStatus.innerText = "Mängel konnten nicht geladen werden.";
+        }
+        return;
+    }
+    currentDefects = await response.json();
+    renderDefectsList();
+}
+
+async function saveDefect() {
+    const personSelect = getElement("defect-person-select");
+    const roomInput = getElement("defect-room");
+    const roomLocationInput = getElement("defect-room-location");
+    const descriptionInput = getElement("defect-description");
+    const damageSourceSelect = getElement("defect-damage-source");
+    const resolutionTypeSelect = getElement("defect-resolution-type");
+    const photoCheckbox = getElement("defect-photo-available");
+    const photoLinkInput = getElement("defect-photo-link");
+    const reportedDateInput = getElement("defect-reported-date");
+    const status = getElement("defect-add-status");
+    if (
+        !personSelect
+        || !roomInput
+        || !roomLocationInput
+        || !descriptionInput
+        || !damageSourceSelect
+        || !resolutionTypeSelect
+        || !photoCheckbox
+        || !photoLinkInput
+        || !reportedDateInput
+        || !status
+    ) {
+        return;
+    }
+
+    const payload = {
+        person_id: Number(personSelect.value),
+        room: roomInput.value.trim(),
+        room_location: roomLocationInput.value.trim(),
+        description: descriptionInput.value.trim(),
+        damage_source: damageSourceSelect.value,
+        resolution_type: resolutionTypeSelect.value,
+        photo_available: photoCheckbox.checked,
+        photo_link: photoCheckbox.checked ? photoLinkInput.value.trim() || null : null,
+        reported_date: reportedDateInput.value || formatDate(new Date()),
+    };
+
+    if (!payload.person_id || !payload.room || !payload.room_location || !payload.description) {
+        status.innerText = "Bitte Person, Raum, Ort im Raum und Beschrieb ausfüllen.";
+        return;
+    }
+
+    const response = await apiFetch("/api/defects", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+        const error = await response.text();
+        status.innerText = `Mangel konnte nicht gespeichert werden: ${error}`;
+        return;
+    }
+
+    const savedDefect = await response.json();
+    roomInput.value = "";
+    roomLocationInput.value = "";
+    descriptionInput.value = "";
+    damageSourceSelect.value = "existing";
+    resolutionTypeSelect.value = "must_fix";
+    photoCheckbox.checked = false;
+    photoLinkInput.value = "";
+    reportedDateInput.value = formatDate(new Date());
+    updateDefectPhotoLinkVisibility();
+    status.innerText = `Mangel gespeichert (${formatDefectCode(savedDefect.id)}).`;
+    await loadDefects();
+}
+
+async function toggleDefectResolved(defectId, checked) {
+    const status = getElement("defects-list-status");
+    const response = await apiFetch(`/api/defects/${defectId}/resolve`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ officially_resolved: checked }),
+    });
+
+    if (!response.ok) {
+        const error = await response.text();
+        if (status) {
+            status.innerText = `Mangel konnte nicht aktualisiert werden: ${error}`;
+        }
+        await loadDefects();
+        return;
+    }
+
+    if (status) {
+        status.innerText = "";
+    }
+    await loadDefects();
+}
+
+function formatFeedbackType(feedbackType) {
+    return feedbackType === "bug" ? "Fehler" : "Idee";
+}
+
+function getPriorityRank(priority) {
+    if (priority === "high") {
+        return 0;
+    }
+    if (priority === "medium") {
+        return 1;
+    }
+    return 2;
+}
+
+function showFeedbackAdd() {
+    setElementDisplay("feedback-add", "block");
+    setElementDisplay("feedback-list", "none");
+    syncPersonSelectors();
+}
+
+function showFeedbackList() {
+    setElementDisplay("feedback-add", "none");
+    setElementDisplay("feedback-list", "block");
+    loadFeedback();
+}
+
+function setFeedbackFilter(filterValue) {
+    currentFeedbackFilter = filterValue;
+    updateSegmentedControlState(
+        ["feedback-filter-all", "feedback-filter-open", "feedback-filter-mine"],
+        `feedback-filter-${filterValue}`,
+    );
+    renderFeedbackList();
+}
+
+function getVisibleFeedback() {
+    const selectedPersonId = getSelectedPersonId();
+    const sortSelect = getElement("feedback-sort-select");
+    const sortMode = sortSelect?.value || "created";
+    const filteredItems = currentFeedback.filter((entry) => {
+        if (currentFeedbackFilter === "open") {
+            return !entry.resolved;
+        }
+        if (currentFeedbackFilter === "mine" && selectedPersonId) {
+            return String(entry.person_id) === String(selectedPersonId);
+        }
+        return true;
+    });
+
+    return filteredItems.sort((left, right) => {
+        if (sortMode === "priority") {
+            const rankDiff = getPriorityRank(left.priority) - getPriorityRank(right.priority);
+            if (rankDiff !== 0) {
+                return rankDiff;
+            }
+        }
+        return new Date(right.created_at) - new Date(left.created_at);
+    });
+}
+
+function renderFeedbackList() {
+    const tableBody = getOptionalElement("#feedback-table tbody");
+    const status = getElement("feedback-list-status");
+    if (!tableBody || !status) {
+        return;
+    }
+    tableBody.innerHTML = "";
+    const visibleFeedback = getVisibleFeedback();
+
+    if (!visibleFeedback.length) {
+        status.innerText = currentFeedbackFilter === "mine"
+            ? "Keine Feedbacks für die aktuelle Person."
+            : currentFeedbackFilter === "open"
+                ? "Keine offenen Feedbacks."
+                : "Noch keine Feedbacks vorhanden.";
+        return;
+    }
+
+    status.innerText = "";
+    visibleFeedback.forEach((entry) => {
+        const row = document.createElement("tr");
+        row.className = "expandable-row";
+        if (expandedFeedbackIds.has(entry.id)) {
+            row.classList.add("is-expanded");
+        }
+        const description = String(entry.description || "");
+        row.innerHTML = `
+            <td>${escapeHtml(entry.area)}</td>
+            <td>${formatFeedbackType(entry.feedback_type)}</td>
+            <td>${escapeHtml(entry.person_name)}</td>
+            <td title="${escapeHtml(description)}">
+                <span class="description-preview">${escapeHtml(formatDescriptionPreview(description))}</span>
+                <span class="description-full">${escapeHtml(description)}</span>
+            </td>
+            <td>
+                <input type="checkbox" ${entry.resolved ? "checked" : ""} onchange="toggleFeedbackResolved(${entry.id}, this.checked)">
+            </td>
+        `;
+        row.addEventListener("click", (event) => {
+            if (event.target.closest("input, button, select, label")) {
+                return;
+            }
+            if (expandedFeedbackIds.has(entry.id)) {
+                expandedFeedbackIds.delete(entry.id);
+                row.classList.remove("is-expanded");
+            } else {
+                expandedFeedbackIds.add(entry.id);
+                row.classList.add("is-expanded");
+            }
+        });
+        tableBody.appendChild(row);
+    });
+}
+
+async function loadFeedback() {
+    const response = await apiFetch("/api/feedback");
+    const addStatus = getElement("feedback-add-status");
+    const listStatus = getElement("feedback-list-status");
+    if (!response.ok) {
+        if (addStatus) {
+            addStatus.innerText = "Feedbacks konnten nicht geladen werden.";
+        }
+        if (listStatus) {
+            listStatus.innerText = "Feedbacks konnten nicht geladen werden.";
+        }
+        return;
+    }
+    currentFeedback = await response.json();
+    renderFeedbackList();
+}
+
+async function saveFeedback() {
+    const personSelect = getElement("feedback-person-select");
+    const areaSelect = getElement("feedback-area");
+    const typeSelect = getElement("feedback-type");
+    const descriptionInput = getElement("feedback-description");
+    const prioritySelect = getElement("feedback-priority");
+    const status = getElement("feedback-add-status");
+    if (!personSelect || !areaSelect || !typeSelect || !descriptionInput || !prioritySelect || !status) {
+        return;
+    }
+
+    const payload = {
+        person_id: Number(personSelect.value),
+        area: areaSelect.value,
+        feedback_type: typeSelect.value,
+        description: descriptionInput.value.trim(),
+        priority: prioritySelect.value,
+    };
+
+    if (!payload.person_id || !payload.area || !payload.description) {
+        status.innerText = "Bitte Erfasser, Bereich und Beschrieb ausfüllen.";
+        return;
+    }
+
+    const response = await apiFetch("/api/feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+        const error = await response.text();
+        status.innerText = `Feedback konnte nicht gespeichert werden: ${error}`;
+        return;
+    }
+
+    descriptionInput.value = "";
+    typeSelect.value = "bug";
+    prioritySelect.value = "medium";
+    status.innerText = "Feedback gespeichert.";
+    await loadFeedback();
+}
+
+async function toggleFeedbackResolved(feedbackId, checked) {
+    const status = getElement("feedback-list-status");
+    const response = await apiFetch(`/api/feedback/${feedbackId}/resolve`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ resolved: checked }),
+    });
+
+    if (!response.ok) {
+        const error = await response.text();
+        if (status) {
+            status.innerText = `Feedback konnte nicht aktualisiert werden: ${error}`;
+        }
+        await loadFeedback();
+        return;
+    }
+
+    if (status) {
+        status.innerText = "";
+    }
+    await loadFeedback();
 }
 
 function pad2(value) {
@@ -1649,28 +2114,49 @@ async function loadLaundry() {
     const tableBody = getOptionalElement("#laundry-table tbody");
     const prevButton = getElement("laundry-prev-button");
     const nextButton = getElement("laundry-next-button");
+    const mineToggle = getElement("laundry-mine-toggle");
     if (!status || !tableBody || !prevButton || !nextButton) {
         return;
     }
     status.innerText = "";
     tableBody.innerHTML = "";
 
-    const response = await apiFetch(`/api/laundry/upcoming?offset=${currentLaundryOffset}&limit=10`);
+    const response = await apiFetch("/api/laundry");
     if (!response.ok) {
         status.innerText = "Wäschebuchungen konnten nicht geladen werden.";
         return;
     }
 
-    const data = await response.json();
-    currentLaundryBookings = data.items;
-    prevButton.disabled = !data.has_previous;
-    nextButton.disabled = !data.has_next;
-    if (!data.items.length) {
-        status.innerText = "Keine Buchungen ab heute.";
+    const today = formatDate(new Date());
+    const selectedPersonId = getSelectedPersonId();
+    currentLaundryListEntries = (await response.json())
+        .filter((entry) => entry.date >= today)
+        .filter((entry) => !(mineToggle?.checked && selectedPersonId) || String(entry.person_id) === String(selectedPersonId))
+        .sort((left, right) => {
+            if (left.date !== right.date) {
+                return left.date.localeCompare(right.date);
+            }
+            if (left.start_time !== right.start_time) {
+                return left.start_time.localeCompare(right.start_time);
+            }
+            return left.id - right.id;
+        });
+
+    if (currentLaundryOffset >= currentLaundryListEntries.length && currentLaundryOffset > 0) {
+        currentLaundryOffset = Math.max(0, currentLaundryOffset - 10);
+    }
+
+    currentLaundryBookings = currentLaundryListEntries.slice(currentLaundryOffset, currentLaundryOffset + 10);
+    prevButton.disabled = currentLaundryOffset === 0;
+    nextButton.disabled = currentLaundryOffset + 10 >= currentLaundryListEntries.length;
+    if (!currentLaundryBookings.length) {
+        status.innerText = mineToggle?.checked
+            ? "Keine Buchungen ab heute für die aktuelle Person."
+            : "Keine Buchungen ab heute.";
         return;
     }
 
-    data.items.forEach((booking) => {
+    currentLaundryBookings.forEach((booking) => {
         const row = document.createElement("tr");
         row.innerHTML = `
             <td>${booking.person_name}</td>
@@ -2122,17 +2608,13 @@ function buildSummaryRows(entries) {
     const tbody = getOptionalElement("#food-summary-table tbody");
     const status = getElement("food-summary-status");
     const weekLabel = getElement("food-summary-week-label");
+    const mineToggle = getElement("food-summary-mine-toggle");
     if (!tbody || !status || !weekLabel) {
         return;
     }
     tbody.innerHTML = "";
     weekLabel.innerText = formatWeekLabel(currentFoodSummaryWeekStart);
     status.innerText = "";
-
-    if (!entries.length) {
-        status.innerText = "Keine Essenseinträge in dieser Woche.";
-        return;
-    }
 
     const mealOrder = {
         brunch: 0,
@@ -2178,7 +2660,17 @@ function buildSummaryRows(entries) {
                 helpers,
                 totalPeople,
                 eatingTime: latestTimeEntry?.eating_time || getDefaultMealTime(firstEntry.meal_type),
+                personIds: Array.from(new Set(
+                    mealEntries
+                        .filter((entry) => entry.eats || entry.cooks || entry.cook_helper)
+                        .map((entry) => String(entry.person_id))
+                )),
             };
+        })
+        .filter((entry) => {
+            const selectedPersonId = getSelectedPersonId();
+            return !(mineToggle?.checked && selectedPersonId)
+                || entry.personIds.includes(String(selectedPersonId));
         })
         .sort((left, right) => {
             if (left.date !== right.date) {
@@ -2189,6 +2681,13 @@ function buildSummaryRows(entries) {
             }
             return left.cookingGroupName.localeCompare(right.cookingGroupName, "de-CH");
         });
+
+    if (!summaryRows.length) {
+        status.innerText = mineToggle?.checked
+            ? "Keine Einträge für die aktuelle Person in dieser Woche."
+            : "Keine Essenseinträge in dieser Woche.";
+        return;
+    }
 
     summaryRows.forEach((entry) => {
         const row = document.createElement("tr");
@@ -2469,28 +2968,46 @@ async function loadGuestroomBookings() {
     const tableBody = getOptionalElement("#guestroom-table tbody");
     const prevButton = getElement("guestroom-prev-button");
     const nextButton = getElement("guestroom-next-button");
+    const mineToggle = getElement("guestroom-mine-toggle");
     if (!status || !tableBody || !prevButton || !nextButton) {
         return;
     }
     status.innerText = "";
     tableBody.innerHTML = "";
 
-    const response = await apiFetch(`/api/guestroom/upcoming?offset=${currentGuestroomOffset}&limit=10`);
+    const response = await apiFetch("/api/guestroom");
     if (!response.ok) {
         status.innerText = "Gästebuchungen konnten nicht geladen werden.";
         return;
     }
 
-    const data = await response.json();
-    currentGuestroomBookings = data.items;
-    prevButton.disabled = !data.has_previous;
-    nextButton.disabled = !data.has_next;
-    if (!data.items.length) {
-        status.innerText = "Keine Buchungen ab heute.";
+    const today = formatDate(new Date());
+    const selectedPersonId = getSelectedPersonId();
+    currentGuestroomListEntries = (await response.json())
+        .filter((entry) => String(entry.end_at).slice(0, 10) >= today)
+        .filter((entry) => !(mineToggle?.checked && selectedPersonId) || String(entry.person_id) === String(selectedPersonId))
+        .sort((left, right) => {
+            if (left.start_at !== right.start_at) {
+                return left.start_at.localeCompare(right.start_at);
+            }
+            return left.id - right.id;
+        });
+
+    if (currentGuestroomOffset >= currentGuestroomListEntries.length && currentGuestroomOffset > 0) {
+        currentGuestroomOffset = Math.max(0, currentGuestroomOffset - 10);
+    }
+
+    currentGuestroomBookings = currentGuestroomListEntries.slice(currentGuestroomOffset, currentGuestroomOffset + 10);
+    prevButton.disabled = currentGuestroomOffset === 0;
+    nextButton.disabled = currentGuestroomOffset + 10 >= currentGuestroomListEntries.length;
+    if (!currentGuestroomBookings.length) {
+        status.innerText = mineToggle?.checked
+            ? "Keine Buchungen ab heute für die aktuelle Person."
+            : "Keine Buchungen ab heute.";
         return;
     }
 
-    data.items.forEach((booking) => {
+    currentGuestroomBookings.forEach((booking) => {
         const row = document.createElement("tr");
         const durationDays = getDurationDays(booking.start_at, booking.end_at);
         row.innerHTML = `
@@ -2567,6 +3084,35 @@ function initChoresPage() {
     }
 }
 
+function initDefectsPage() {
+    const defectsSection = getElement("defects");
+    const defectsAdd = getElement("defects-add");
+    const defectsList = getElement("defects-list");
+    if (!defectsSection || !defectsAdd || !defectsList) {
+        return;
+    }
+    setElementDisplay("defects-add", "block");
+    setElementDisplay("defects-list", "none");
+    setDefectFilter("all");
+    const reportedDateInput = getElement("defect-reported-date");
+    if (reportedDateInput && !reportedDateInput.value) {
+        reportedDateInput.value = formatDate(new Date());
+    }
+    updateDefectPhotoLinkVisibility();
+}
+
+function initFeedbackPage() {
+    const feedbackSection = getElement("feedback");
+    const feedbackAdd = getElement("feedback-add");
+    const feedbackList = getElement("feedback-list");
+    if (!feedbackSection || !feedbackAdd || !feedbackList) {
+        return;
+    }
+    setElementDisplay("feedback-add", "block");
+    setElementDisplay("feedback-list", "none");
+    setFeedbackFilter("all");
+}
+
 function initHomePage() {
     const homeSection = getElement("home");
     if (!homeSection) {
@@ -2578,6 +3124,8 @@ function initHomePage() {
     renderChoresList();
     renderChoreAssignments();
     renderChoresOverview();
+    renderDefectsList();
+    renderFeedbackList();
     updatePersonFormUi();
     updateGuestRoomFormUi();
     updateChoreFormUi();
@@ -2624,6 +3172,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     initOverviewPage();
     initGuestroomPage();
     initChoresPage();
+    initDefectsPage();
+    initFeedbackPage();
 
     if (getHouseToken()) {
         applyLoggedInState();

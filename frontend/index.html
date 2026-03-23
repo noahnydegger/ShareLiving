@@ -18,6 +18,7 @@
             <a href="#" onclick="showSection('guestroom')">Gäste</a>
             <a href="#" onclick="showSection('chores')">Ämtli</a>
             <a href="#" onclick="showSection('defects')">Mängel</a>
+            <a href="#" onclick="showSection('feedback')">Feedback</a>
             <a href="#" onclick="showSection('events')">Events</a>
         </div>
     </div>
@@ -67,7 +68,7 @@
                 <input id="person-name" placeholder="Name der Person">
                 <button id="person-save-button" onclick="savePerson()">Person hinzufügen</button>
                 <button id="person-cancel-button" type="button" style="display:none" onclick="resetPersonForm()">Abbrechen</button>
-                <button id="person-edit-toggle" type="button" onclick="togglePersonEditMode()">Edit Personen</button>
+                <button id="person-edit-toggle" type="button" onclick="togglePersonEditMode()">Personen bearbeiten</button>
                 <p id="person-status"></p>
                 <ul id="people-list"></ul>
             </div>
@@ -77,7 +78,7 @@
                 <input id="guest-room-name" placeholder="Name des Gästezimmers">
                 <button id="guest-room-save-button" onclick="saveGuestRoom()">Gästezimmer hinzufügen</button>
                 <button id="guest-room-cancel-button" type="button" style="display:none" onclick="resetGuestRoomForm()">Abbrechen</button>
-                <button id="guest-room-edit-toggle" type="button" onclick="toggleGuestRoomEditMode()">Edit Gästezimmer</button>
+                <button id="guest-room-edit-toggle" type="button" onclick="toggleGuestRoomEditMode()">Gästezimmer bearbeiten</button>
                 <p id="guest-room-status"></p>
                 <ul id="guest-rooms-list"></ul>
             </div>
@@ -160,6 +161,15 @@
     </div>
 
     <div id="laundry-list" style="display:none">
+        <div class="overview-filters">
+            <label class="switch-row">
+                <span>Meine Einträge</span>
+                <span class="switch">
+                    <input id="laundry-mine-toggle" type="checkbox" onchange="loadLaundry()">
+                    <span class="switch-slider"></span>
+                </span>
+            </label>
+        </div>
         <table id="laundry-table">
             <thead>
                 <tr>
@@ -224,6 +234,15 @@
             <button onclick="changeFoodSummaryWeek(1)">Nächste Woche</button>
             <button onclick="goToTodayFoodSummary()">Heute</button>
         </div>
+        <div class="overview-filters">
+            <label class="switch-row">
+                <span>Meine Einträge</span>
+                <span class="switch">
+                    <input id="food-summary-mine-toggle" type="checkbox" onchange="loadFoodSummary()">
+                    <span class="switch-slider"></span>
+                </span>
+            </label>
+        </div>
         <table id="food-summary-table">
             <thead>
                 <tr>
@@ -263,6 +282,15 @@
     </div>
 
     <div id="guestroom-list" style="display:none">
+        <div class="overview-filters">
+            <label class="switch-row">
+                <span>Meine Einträge</span>
+                <span class="switch">
+                    <input id="guestroom-mine-toggle" type="checkbox" onchange="loadGuestroomBookings()">
+                    <span class="switch-slider"></span>
+                </span>
+            </label>
+        </div>
         <table id="guestroom-table">
             <thead>
                 <tr>
@@ -361,13 +389,140 @@
 
 <section id="defects" class="section-card" style="display:none">
     <h2>Mängel</h2>
+    <div class="chores-actions">
+        <button type="button" onclick="showDefectAdd()">Mangel erfassen</button>
+        <button type="button" onclick="showDefectList()">Mängel anzeigen</button>
+    </div>
+
+    <div id="defects-add" style="display:none">
+        <label for="defect-person-select">Erfasser</label>
+        <select id="defect-person-select"></select>
+        <input id="defect-room" placeholder="Raum (Stock und Zimmer)">
+        <input id="defect-room-location" placeholder="Wo im Raum">
+        <textarea id="defect-description" placeholder="Beschreibung des Mangels"></textarea>
+        <label for="defect-damage-source">Schadensart</label>
+        <select id="defect-damage-source">
+            <option value="existing">Schaden war bereits vorhanden</option>
+            <option value="self_caused">Schaden selber verursacht</option>
+        </select>
+        <label for="defect-resolution-type">Erfassung</label>
+        <select id="defect-resolution-type">
+            <option value="must_fix">Mangel muss behoben werden</option>
+            <option value="must_record">Mangel muss erfasst werden</option>
+        </select>
+        <label class="checkbox-row">
+            <input id="defect-photo-available" type="checkbox" onchange="updateDefectPhotoLinkVisibility()">
+            <span>Foto vorhanden</span>
+        </label>
+        <input id="defect-photo-link" placeholder="OneDrive-Link zu den Fotos" style="display:none">
+        <label for="defect-reported-date">Erfassdatum</label>
+        <input id="defect-reported-date" type="date">
+        <label for="defect-code-preview">Mangel-ID</label>
+        <input id="defect-code-preview" value="Wird automatisch erstellt" readonly>
+        <button type="button" onclick="saveDefect()">Mangel speichern</button>
+        <p id="defect-add-status"></p>
+    </div>
+
+    <div id="defects-list" style="display:none">
+        <div class="filter-toolbar">
+            <div class="segmented-control" role="group" aria-label="Mängel-Filter">
+                <button id="defects-filter-all" type="button" onclick="setDefectFilter('all')">Alle Mängel</button>
+                <button id="defects-filter-open" type="button" onclick="setDefectFilter('open')">Nicht abgeschlossen</button>
+                <button id="defects-filter-mine" type="button" onclick="setDefectFilter('mine')">Eigene Mängel</button>
+            </div>
+        </div>
+        <table id="defects-table">
+            <thead>
+                <tr>
+                    <th>Raum</th>
+                    <th>Wo im Raum</th>
+                    <th>Beschrieb</th>
+                    <th>Erfasser</th>
+                    <th>Foto vorhanden</th>
+                    <th>Offiziell erledigt</th>
+                    <th>Mangel-ID</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+        <p id="defects-list-status"></p>
+    </div>
+</section>
+
+<section id="feedback" class="section-card" style="display:none">
+    <h2>Feedback</h2>
+    <div class="chores-actions">
+        <button type="button" onclick="showFeedbackAdd()">Feedback erfassen</button>
+        <button type="button" onclick="showFeedbackList()">Feedbacks anzeigen</button>
+    </div>
+
+    <div id="feedback-add" style="display:none">
+        <label for="feedback-person-select">Erfasser</label>
+        <select id="feedback-person-select"></select>
+        <label for="feedback-area">Betroffener Bereich</label>
+        <select id="feedback-area">
+            <option value="Home">Home</option>
+            <option value="Übersicht">Übersicht</option>
+            <option value="Essen">Essen</option>
+            <option value="Wäsche">Wäsche</option>
+            <option value="Gäste">Gäste</option>
+            <option value="Ämtli">Ämtli</option>
+            <option value="Mängel">Mängel</option>
+            <option value="Feedback">Feedback</option>
+            <option value="Events">Events</option>
+        </select>
+        <label for="feedback-type">Art</label>
+        <select id="feedback-type">
+            <option value="bug">Fehler melden</option>
+            <option value="idea">Neue Idee/Funktion vorschlagen</option>
+        </select>
+        <textarea id="feedback-description" placeholder="Beschrieb"></textarea>
+        <label for="feedback-priority">Priorität</label>
+        <select id="feedback-priority">
+            <option value="high">hoch</option>
+            <option value="medium" selected>mittel</option>
+            <option value="low">tief</option>
+        </select>
+        <button type="button" onclick="saveFeedback()">Feedback speichern</button>
+        <p id="feedback-add-status"></p>
+    </div>
+
+    <div id="feedback-list" style="display:none">
+        <div class="filter-toolbar">
+            <div class="segmented-control" role="group" aria-label="Feedback-Filter">
+                <button id="feedback-filter-all" type="button" onclick="setFeedbackFilter('all')">Alle Feedbacks</button>
+                <button id="feedback-filter-open" type="button" onclick="setFeedbackFilter('open')">Nicht erledigt</button>
+                <button id="feedback-filter-mine" type="button" onclick="setFeedbackFilter('mine')">Eigene Feedbacks</button>
+            </div>
+            <label class="inline-field" for="feedback-sort-select">
+                <span>Sortierung</span>
+                <select id="feedback-sort-select" onchange="renderFeedbackList()">
+                    <option value="created">Neueste zuerst</option>
+                    <option value="priority">Nach Priorität</option>
+                </select>
+            </label>
+        </div>
+        <table id="feedback-table">
+            <thead>
+                <tr>
+                    <th>Bereich</th>
+                    <th>Fehler oder Idee</th>
+                    <th>Erfasser</th>
+                    <th>Beschrieb</th>
+                    <th>Erledigt</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+        <p id="feedback-list-status"></p>
+    </div>
 </section>
 
 <section id="events" class="section-card" style="display:none">
     <h2>Events</h2>
 </section>
 
-<script src="main.js?v=20260321-3"></script>
+<script src="main.js?v=20260323-1"></script>
 </div>
 </body>
 </html>
