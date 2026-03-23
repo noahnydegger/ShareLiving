@@ -12,12 +12,19 @@ class DefectCreateIn(BaseModel):
     damage_source: str
     resolution_type: str
     photo_available: bool = False
-    photo_link: Optional[str] = None
     reported_date: date
 
 
 class DefectResolveIn(BaseModel):
     officially_resolved: bool
+
+
+class DefectSettingsIn(BaseModel):
+    photo_link: Optional[str] = None
+
+
+class DefectSettingsOut(BaseModel):
+    photo_link: Optional[str] = None
 
 
 class DefectOut(BaseModel):

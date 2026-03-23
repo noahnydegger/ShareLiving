@@ -112,6 +112,12 @@ def init_db():
             )
             cur.execute(
                 """
+                ALTER TABLE houses
+                ADD COLUMN IF NOT EXISTS defect_photo_link TEXT NULL
+                """
+            )
+            cur.execute(
+                """
                 INSERT INTO houses (slug, name)
                 VALUES ('default', 'default')
                 ON CONFLICT (slug) DO NOTHING

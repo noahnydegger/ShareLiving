@@ -19,7 +19,6 @@ def list_defects(house_id: int) -> list[dict]:
                        d.damage_source,
                        d.resolution_type,
                        d.photo_available,
-                       d.photo_link,
                        d.reported_date,
                        d.officially_resolved,
                        d.created_at
@@ -49,7 +48,6 @@ def get_defect(house_id: int, defect_id: int) -> Optional[dict]:
                        d.damage_source,
                        d.resolution_type,
                        d.photo_available,
-                       d.photo_link,
                        d.reported_date,
                        d.officially_resolved,
                        d.created_at
@@ -72,7 +70,6 @@ def create_defect(
     damage_source: str,
     resolution_type: str,
     photo_available: bool,
-    photo_link: Optional[str],
     reported_date: date,
 ) -> dict:
     cleaned_room = _required_text(room, "Room is required")
@@ -92,10 +89,9 @@ def create_defect(
                     damage_source,
                     resolution_type,
                     photo_available,
-                    photo_link,
                     reported_date
                 )
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                 RETURNING id
                 """,
                 (
@@ -107,7 +103,6 @@ def create_defect(
                     damage_source,
                     resolution_type,
                     photo_available,
-                    _normalize_optional_text(photo_link),
                     reported_date,
                 ),
             )
@@ -133,6 +128,38 @@ def set_defect_resolved(house_id: int, defect_id: int, officially_resolved: bool
     if not row:
         return None
     return get_defect(house_id, row["id"])
+
+
+def get_defect_photo_link(house_id: int) -> Optional[str]:
+    with get_connection() as con:
+        with con.cursor() as cur:
+            cur.execute(
+                """
+                SELECT defect_photo_link
+                FROM houses
+                WHERE id = %s
+                """,
+                (house_id,),
+            )
+            row = cur.fetchone()
+    return row["defect_photo_link"] if row else None
+
+
+def set_defect_photo_link(house_id: int, photo_link: Optional[str]) -> Optional[str]:
+    with get_connection() as con:
+        with con.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE houses
+                SET defect_photo_link = %s
+                WHERE id = %s
+                RETURNING defect_photo_link
+                """,
+                (_normalize_optional_text(photo_link), house_id),
+            )
+            row = cur.fetchone()
+        con.commit()
+    return row["defect_photo_link"] if row else None
 
 
 def _required_text(value: str, message: str) -> str:

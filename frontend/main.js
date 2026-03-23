@@ -9,6 +9,7 @@ let currentGuestRooms = [];
 let currentChores = [];
 let currentDefects = [];
 let currentFeedback = [];
+let currentDefectPhotoLink = "";
 let currentFoodAddWeekStart = getMonday(new Date());
 let currentFoodSummaryWeekStart = getMonday(new Date());
 let currentOverviewView = "week";
@@ -28,6 +29,7 @@ let editingGuestRoomId = null;
 let editingChoreId = null;
 let currentDefectFilter = "all";
 let currentFeedbackFilter = "all";
+let expandedChoreIds = new Set();
 let expandedDefectIds = new Set();
 let expandedFeedbackIds = new Set();
 let livingGroupEditMode = false;
@@ -432,8 +434,10 @@ function logoutHouse() {
     currentChores = [];
     currentDefects = [];
     currentFeedback = [];
+    currentDefectPhotoLink = "";
     currentDefectFilter = "all";
     currentFeedbackFilter = "all";
+    expandedChoreIds = new Set();
     expandedDefectIds = new Set();
     expandedFeedbackIds = new Set();
     editingPersonId = null;
@@ -839,13 +843,28 @@ function renderChoresOverview() {
     status.innerText = "";
     visibleChores.forEach((chore) => {
         const row = document.createElement("tr");
+        row.className = "expandable-row";
+        if (expandedChoreIds.has(chore.id)) {
+            row.classList.add("is-expanded");
+        }
         row.innerHTML = `
-            <td>${chore.name}</td>
+            <td>
+                <span class="description-preview">${escapeHtml(chore.name)}</span>
+                <span class="description-full">${escapeHtml(chore.description || "Kein Beschrieb vorhanden.")}</span>
+            </td>
             <td>${chore.location || ""}</td>
             <td>${chore.frequency || ""}</td>
-            <td>${formatChoreEffort(chore.effort)}</td>
             <td>${chore.assigned_person_name || "Nicht zugeteilt"}</td>
         `;
+        row.addEventListener("click", () => {
+            if (expandedChoreIds.has(chore.id)) {
+                expandedChoreIds.delete(chore.id);
+                row.classList.remove("is-expanded");
+            } else {
+                expandedChoreIds.add(chore.id);
+                row.classList.add("is-expanded");
+            }
+        });
         tableBody.appendChild(row);
     });
 }
@@ -866,7 +885,6 @@ function resetChoreForm() {
     const nameInput = getElement("chore-name");
     const locationInput = getElement("chore-location");
     const frequencyInput = getElement("chore-frequency");
-    const effortInput = getElement("chore-effort");
     const descriptionInput = getElement("chore-description");
     const status = getElement("chore-manage-status");
     if (nameInput) {
@@ -877,9 +895,6 @@ function resetChoreForm() {
     }
     if (frequencyInput) {
         frequencyInput.value = "";
-    }
-    if (effortInput) {
-        effortInput.value = "";
     }
     if (descriptionInput) {
         descriptionInput.value = "";
@@ -895,17 +910,15 @@ function editChoreById(choreId) {
     const nameInput = getElement("chore-name");
     const locationInput = getElement("chore-location");
     const frequencyInput = getElement("chore-frequency");
-    const effortInput = getElement("chore-effort");
     const descriptionInput = getElement("chore-description");
     const status = getElement("chore-manage-status");
-    if (!chore || !nameInput || !locationInput || !frequencyInput || !effortInput || !descriptionInput || !status) {
+    if (!chore || !nameInput || !locationInput || !frequencyInput || !descriptionInput || !status) {
         return;
     }
     editingChoreId = choreId;
     nameInput.value = chore.name;
     locationInput.value = chore.location || "";
     frequencyInput.value = chore.frequency || "";
-    effortInput.value = chore.effort ?? "";
     descriptionInput.value = chore.description || "";
     status.innerText = "Ämtli bearbeiten.";
     updateChoreFormUi();
@@ -939,28 +952,21 @@ async function saveChore() {
     const nameInput = getElement("chore-name");
     const locationInput = getElement("chore-location");
     const frequencyInput = getElement("chore-frequency");
-    const effortInput = getElement("chore-effort");
     const descriptionInput = getElement("chore-description");
     const status = getElement("chore-manage-status");
-    if (!nameInput || !locationInput || !frequencyInput || !effortInput || !descriptionInput || !status) {
+    if (!nameInput || !locationInput || !frequencyInput || !descriptionInput || !status) {
         return;
     }
-
-    const effortValue = effortInput.value.trim();
     const payload = {
         name: nameInput.value.trim(),
         location: locationInput.value.trim() || null,
         frequency: frequencyInput.value.trim() || null,
-        effort: effortValue ? Number(effortValue) : null,
+        effort: null,
         description: descriptionInput.value.trim() || null,
     };
 
     if (!payload.name) {
         status.innerText = "Bitte einen Namen für das Ämtli eingeben.";
-        return;
-    }
-    if (effortValue && Number.isNaN(payload.effort)) {
-        status.innerText = "Bitte einen gültigen Aufwand eingeben.";
         return;
     }
 
@@ -1059,15 +1065,35 @@ function updateSegmentedControlState(buttonIds, activeId) {
     });
 }
 
-function updateDefectPhotoLinkVisibility() {
-    const checkbox = getElement("defect-photo-available");
-    const linkInput = getElement("defect-photo-link");
-    if (!checkbox || !linkInput) {
+function getNextDefectIdPreview() {
+    if (!currentDefects.length) {
+        return 1;
+    }
+    return Math.max(...currentDefects.map((defect) => Number(defect.id) || 0)) + 1;
+}
+
+function updateDefectCodePreview() {
+    const codeInput = getElement("defect-code-preview");
+    if (!codeInput) {
         return;
     }
-    linkInput.style.display = checkbox.checked ? "block" : "none";
-    if (!checkbox.checked) {
-        linkInput.value = "";
+    codeInput.value = formatDefectCode(getNextDefectIdPreview());
+}
+
+function renderDefectPhotoLink() {
+    const input = getElement("defect-shared-photo-link");
+    const display = getElement("defect-shared-photo-display");
+    const status = getElement("defect-shared-photo-status");
+    if (input) {
+        input.value = currentDefectPhotoLink || "";
+    }
+    if (display) {
+        display.innerHTML = currentDefectPhotoLink
+            ? `<a href="${escapeHtml(currentDefectPhotoLink)}" target="_blank" rel="noopener noreferrer">Fotolink öffnen</a>`
+            : "";
+    }
+    if (status && !status.innerText) {
+        status.innerText = currentDefectPhotoLink ? "Link für alle Mängel gespeichert." : "";
     }
 }
 
@@ -1079,7 +1105,11 @@ function showDefectAdd() {
     if (reportedDateInput && !reportedDateInput.value) {
         reportedDateInput.value = formatDate(new Date());
     }
-    updateDefectPhotoLinkVisibility();
+    renderDefectPhotoLink();
+    updateDefectCodePreview();
+    if (getHouseToken()) {
+        loadDefects();
+    }
 }
 
 function showDefectList() {
@@ -1127,7 +1157,7 @@ function renderDefectsList() {
     status.innerText = "";
     visibleDefects.forEach((defect) => {
         const row = document.createElement("tr");
-        row.className = "expandable-row";
+        row.className = "expandable-row defect-row";
         if (expandedDefectIds.has(defect.id)) {
             row.classList.add("is-expanded");
         }
@@ -1139,6 +1169,8 @@ function renderDefectsList() {
                 <span class="description-preview">${escapeHtml(formatDescriptionPreview(description))}</span>
                 <span class="description-full">${escapeHtml(description)}</span>
             </td>
+            <td>${defect.damage_source === "existing" ? "Ja" : "Nein"}</td>
+            <td>${defect.resolution_type === "must_fix" ? "Ja" : "Nein"}</td>
             <td>${escapeHtml(defect.person_name)}</td>
             <td>${defect.photo_available ? "Ja" : "Nein"}</td>
             <td>
@@ -1163,20 +1195,30 @@ function renderDefectsList() {
 }
 
 async function loadDefects() {
-    const response = await apiFetch("/api/defects");
+    const [response, settingsResponse] = await Promise.all([
+        apiFetch("/api/defects"),
+        apiFetch("/api/defects/settings"),
+    ]);
     const addStatus = getElement("defect-add-status");
     const listStatus = getElement("defects-list-status");
-    if (!response.ok) {
+    const sharedStatus = getElement("defect-shared-photo-status");
+    if (!response.ok || !settingsResponse.ok) {
         if (addStatus) {
             addStatus.innerText = "Mängel konnten nicht geladen werden.";
         }
         if (listStatus) {
             listStatus.innerText = "Mängel konnten nicht geladen werden.";
         }
+        if (sharedStatus) {
+            sharedStatus.innerText = "Fotolink konnte nicht geladen werden.";
+        }
         return;
     }
     currentDefects = await response.json();
+    currentDefectPhotoLink = (await settingsResponse.json()).photo_link || "";
     renderDefectsList();
+    renderDefectPhotoLink();
+    updateDefectCodePreview();
 }
 
 async function saveDefect() {
@@ -1187,7 +1229,6 @@ async function saveDefect() {
     const damageSourceSelect = getElement("defect-damage-source");
     const resolutionTypeSelect = getElement("defect-resolution-type");
     const photoCheckbox = getElement("defect-photo-available");
-    const photoLinkInput = getElement("defect-photo-link");
     const reportedDateInput = getElement("defect-reported-date");
     const status = getElement("defect-add-status");
     if (
@@ -1198,7 +1239,6 @@ async function saveDefect() {
         || !damageSourceSelect
         || !resolutionTypeSelect
         || !photoCheckbox
-        || !photoLinkInput
         || !reportedDateInput
         || !status
     ) {
@@ -1213,7 +1253,6 @@ async function saveDefect() {
         damage_source: damageSourceSelect.value,
         resolution_type: resolutionTypeSelect.value,
         photo_available: photoCheckbox.checked,
-        photo_link: photoCheckbox.checked ? photoLinkInput.value.trim() || null : null,
         reported_date: reportedDateInput.value || formatDate(new Date()),
     };
 
@@ -1241,11 +1280,33 @@ async function saveDefect() {
     damageSourceSelect.value = "existing";
     resolutionTypeSelect.value = "must_fix";
     photoCheckbox.checked = false;
-    photoLinkInput.value = "";
     reportedDateInput.value = formatDate(new Date());
-    updateDefectPhotoLinkVisibility();
     status.innerText = `Mangel gespeichert (${formatDefectCode(savedDefect.id)}).`;
     await loadDefects();
+}
+
+async function saveDefectPhotoLink() {
+    const input = getElement("defect-shared-photo-link");
+    const status = getElement("defect-shared-photo-status");
+    if (!input || !status) {
+        return;
+    }
+
+    const response = await apiFetch("/api/defects/settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ photo_link: input.value.trim() || null }),
+    });
+
+    if (!response.ok) {
+        const error = await response.text();
+        status.innerText = `Fotolink konnte nicht gespeichert werden: ${error}`;
+        return;
+    }
+
+    currentDefectPhotoLink = (await response.json()).photo_link || "";
+    status.innerText = currentDefectPhotoLink ? "Fotolink gespeichert." : "Fotolink entfernt.";
+    renderDefectPhotoLink();
 }
 
 async function toggleDefectResolved(defectId, checked) {
@@ -1352,7 +1413,7 @@ function renderFeedbackList() {
     status.innerText = "";
     visibleFeedback.forEach((entry) => {
         const row = document.createElement("tr");
-        row.className = "expandable-row";
+        row.className = "expandable-row feedback-row";
         if (expandedFeedbackIds.has(entry.id)) {
             row.classList.add("is-expanded");
         }
@@ -1404,18 +1465,18 @@ async function loadFeedback() {
 
 async function saveFeedback() {
     const personSelect = getElement("feedback-person-select");
-    const areaSelect = getElement("feedback-area");
+    const areaInput = getElement("feedback-area");
     const typeSelect = getElement("feedback-type");
     const descriptionInput = getElement("feedback-description");
     const prioritySelect = getElement("feedback-priority");
     const status = getElement("feedback-add-status");
-    if (!personSelect || !areaSelect || !typeSelect || !descriptionInput || !prioritySelect || !status) {
+    if (!personSelect || !areaInput || !typeSelect || !descriptionInput || !prioritySelect || !status) {
         return;
     }
 
     const payload = {
         person_id: Number(personSelect.value),
-        area: areaSelect.value,
+        area: areaInput.value.trim(),
         feedback_type: typeSelect.value,
         description: descriptionInput.value.trim(),
         priority: prioritySelect.value,
@@ -1553,6 +1614,18 @@ function formatMonthDay(dateValue) {
         day: "2-digit",
         month: "2-digit",
     });
+}
+
+function formatWeekdayMonthDay(dateValue) {
+    const date = typeof dateValue === "string"
+        ? new Date(`${dateValue}T00:00:00`)
+        : dateValue;
+    const weekday = date.toLocaleDateString("de-CH", { weekday: "short" }).replace(",", "");
+    const dayMonth = date.toLocaleDateString("de-CH", {
+        day: "2-digit",
+        month: "2-digit",
+    });
+    return `${weekday} ${dayMonth}`;
 }
 
 function getDateRangeForOverview() {
@@ -1732,6 +1805,17 @@ function formatDateTime(value) {
         return "";
     }
     return value.replace("T", " ").replace(":00", "");
+}
+
+function formatGuestroomListDateTime(value) {
+    if (!value) {
+        return "";
+    }
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+        return formatDateTime(value);
+    }
+    return `${formatWeekdayMonthDay(date)} ${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
 }
 
 function formatGuestroomRoomLabel(roomName, responsibleName) {
@@ -2159,12 +2243,11 @@ async function loadLaundry() {
     currentLaundryBookings.forEach((booking) => {
         const row = document.createElement("tr");
         row.innerHTML = `
-            <td>${booking.person_name}</td>
-            <td>${booking.date}</td>
-            <td>${booking.machine}</td>
+            <td>${formatWeekdayMonthDay(booking.date)}</td>
             <td>${booking.start_time.slice(0, 5)}</td>
             <td>${booking.end_time.slice(0, 5)}</td>
-            <td>${formatDuration(booking.duration_minutes)}</td>
+            <td>${booking.machine}</td>
+            <td>${booking.person_name}</td>
             <td>
                 <button type="button" onclick="editLaundryBookingById(${booking.id})">Bearbeiten</button>
                 <button type="button" onclick="deleteLaundryBooking(${booking.id})">Löschen</button>
@@ -2755,10 +2838,10 @@ function startNewGuestroomBooking() {
     showGuestroomAdd();
 }
 
-function showGuestroomList() {
+async function showGuestroomList() {
     setElementDisplay("guestroom-add", "none");
     setElementDisplay("guestroom-list", "block");
-    loadGuestroomBookings();
+    await loadGuestroomBookings();
 }
 
 function changeGuestroomPage(direction) {
@@ -2846,6 +2929,38 @@ function editGuestroomBookingById(bookingId) {
     }
 }
 
+async function fetchGuestroomConflicts(personId, guestRoomId, startAt, endAt) {
+    const params = new URLSearchParams({
+        person_id: String(personId),
+        start_at: startAt,
+        end_at: endAt,
+    });
+    if (guestRoomId) {
+        params.set("guest_room_id", String(guestRoomId));
+    }
+    if (editingGuestroomBookingId) {
+        params.set("exclude_booking_id", String(editingGuestroomBookingId));
+    }
+
+    const response = await apiFetch(`/api/guestroom/conflicts?${params.toString()}`);
+    if (!response.ok) {
+        return [];
+    }
+    return response.json();
+}
+
+function formatGuestroomConflictMessage(conflicts) {
+    if (!conflicts.length) {
+        return "";
+    }
+    return conflicts
+        .map((conflict) => (
+            `${conflict.room_name} ist bereits gebucht von ${conflict.responsible_name} `
+            + `(${formatDateTime(conflict.start_at)} bis ${formatDateTime(conflict.end_at)}).`
+        ))
+        .join(" ");
+}
+
 async function refreshGuestroomRoomInfo() {
     const personSelect = getElement("guestroom-person-select");
     const roomSelect = getElement("guestroom-room-select");
@@ -2861,36 +2976,13 @@ async function refreshGuestroomRoomInfo() {
         return;
     }
 
-    const params = new URLSearchParams({
-        person_id: String(personSelect.value),
-        start_at: startInput.value,
-        end_at: endInput.value,
-    });
-    if (roomSelect.value) {
-        params.set("guest_room_id", roomSelect.value);
-    }
-    if (editingGuestroomBookingId) {
-        params.set("exclude_booking_id", String(editingGuestroomBookingId));
-    }
-
-    const response = await apiFetch(`/api/guestroom/conflicts?${params.toString()}`);
-    if (!response.ok) {
-        roomInfo.innerText = "";
-        return;
-    }
-
-    const conflicts = await response.json();
-    if (!conflicts.length) {
-        roomInfo.innerText = "";
-        return;
-    }
-
-    roomInfo.innerText = conflicts
-        .map((conflict) => (
-            `${conflict.room_name} ist bereits gebucht von ${conflict.responsible_name} `
-            + `(${formatDateTime(conflict.start_at)} bis ${formatDateTime(conflict.end_at)}).`
-        ))
-        .join(" ");
+    const conflicts = await fetchGuestroomConflicts(
+        personSelect.value,
+        roomSelect.value || null,
+        startInput.value,
+        endInput.value,
+    );
+    roomInfo.innerText = formatGuestroomConflictMessage(conflicts);
 }
 
 async function saveGuestroomBooking() {
@@ -2918,6 +3010,8 @@ async function saveGuestroomBooking() {
         return;
     }
 
+    const conflicts = await fetchGuestroomConflicts(personId, guestRoomId || null, startAt, endAt);
+
     const response = await apiFetch(
         editingGuestroomBookingId ? `/api/guestroom/${editingGuestroomBookingId}` : "/api/guestroom",
         {
@@ -2940,8 +3034,12 @@ async function saveGuestroomBooking() {
     }
 
     status.innerText = editingGuestroomBookingId ? "Buchung aktualisiert." : "Buchung gespeichert.";
+    const conflictMessage = formatGuestroomConflictMessage(conflicts);
     resetGuestroomForm();
-    showGuestroomList();
+    await showGuestroomList();
+    if (conflictMessage) {
+        window.alert(conflictMessage);
+    }
 }
 
 async function deleteGuestroomBooking(bookingId) {
@@ -3011,12 +3109,12 @@ async function loadGuestroomBookings() {
         const row = document.createElement("tr");
         const durationDays = getDurationDays(booking.start_at, booking.end_at);
         row.innerHTML = `
-            <td>${booking.responsible_name}</td>
-            <td>${formatGuestroomRoomLabel(booking.room_name, booking.responsible_name)}</td>
             <td>${booking.guest_name}</td>
-            <td>${formatDateTime(booking.start_at)}</td>
-            <td>${formatDateTime(booking.end_at)}</td>
+            <td>${formatGuestroomListDateTime(booking.start_at)}</td>
+            <td>${formatGuestroomListDateTime(booking.end_at)}</td>
             <td>${durationDays} ${durationDays === 1 ? "Tag" : "Tage"}</td>
+            <td>${formatGuestroomRoomLabel(booking.room_name, booking.responsible_name)}</td>
+            <td>${booking.responsible_name}</td>
             <td>
                 <button type="button" onclick="editGuestroomBookingById(${booking.id})">Bearbeiten</button>
                 <button type="button" onclick="deleteGuestroomBooking(${booking.id})">Löschen</button>
@@ -3098,7 +3196,11 @@ function initDefectsPage() {
     if (reportedDateInput && !reportedDateInput.value) {
         reportedDateInput.value = formatDate(new Date());
     }
-    updateDefectPhotoLinkVisibility();
+    renderDefectPhotoLink();
+    updateDefectCodePreview();
+    if (getHouseToken()) {
+        loadDefects();
+    }
 }
 
 function initFeedbackPage() {

@@ -173,12 +173,11 @@
         <table id="laundry-table">
             <thead>
                 <tr>
-                    <th>Person</th>
                     <th>Datum</th>
-                    <th>Waschmaschine</th>
                     <th>Start</th>
                     <th>Ende</th>
-                    <th>Dauer</th>
+                    <th>Waschmaschine</th>
+                    <th>Person</th>
                     <th>Aktionen</th>
                 </tr>
             </thead>
@@ -294,12 +293,12 @@
         <table id="guestroom-table">
             <thead>
                 <tr>
-                    <th>Verantwortlich</th>
-                    <th>Zimmer</th>
                     <th>Gast</th>
                     <th>Start</th>
                     <th>Ende</th>
                     <th>Dauer</th>
+                    <th>Zimmer</th>
+                    <th>Verantwortlich</th>
                     <th>Aktionen</th>
                 </tr>
             </thead>
@@ -347,7 +346,6 @@
                 <input id="chore-name" placeholder="Name des Ämtli">
                 <input id="chore-location" placeholder="Ort">
                 <input id="chore-frequency" placeholder="Häufigkeit">
-                <input id="chore-effort" type="number" min="0" step="0.25" placeholder="Stunden pro Woche">
                 <textarea id="chore-description" placeholder="Beschreibung"></textarea>
                 <button id="chore-save-button" type="button" onclick="saveChore()">Ämtli hinzufügen</button>
                 <button id="chore-cancel-button" type="button" style="display:none" onclick="resetChoreForm()">Abbrechen</button>
@@ -371,13 +369,13 @@
                 </span>
             </label>
         </div>
+        <p>Für Beschrieb Ämtli anklicken</p>
         <table id="chores-overview-table">
             <thead>
                 <tr>
                     <th>Ämtli</th>
                     <th>Ort</th>
                     <th>Häufigkeit</th>
-                    <th>Aufwand</th>
                     <th>Zuständig</th>
                 </tr>
             </thead>
@@ -391,10 +389,17 @@
     <h2>Mängel</h2>
     <div class="chores-actions">
         <button type="button" onclick="showDefectAdd()">Mangel erfassen</button>
-        <button type="button" onclick="showDefectList()">Mängel anzeigen</button>
+        <button type="button" onclick="showDefectList()">Mängel Übersicht</button>
     </div>
 
     <div id="defects-add" style="display:none">
+        <div class="panel">
+            <h3>Fotolink</h3>
+            <input id="defect-shared-photo-link" placeholder="OneDrive-Link zu allen Mängel-Fotos">
+            <button type="button" onclick="saveDefectPhotoLink()">Link speichern</button>
+            <p id="defect-shared-photo-display"></p>
+            <p id="defect-shared-photo-status"></p>
+        </div>
         <label for="defect-person-select">Erfasser</label>
         <select id="defect-person-select"></select>
         <input id="defect-room" placeholder="Raum (Stock und Zimmer)">
@@ -411,10 +416,9 @@
             <option value="must_record">Mangel muss erfasst werden</option>
         </select>
         <label class="checkbox-row">
-            <input id="defect-photo-available" type="checkbox" onchange="updateDefectPhotoLinkVisibility()">
+            <input id="defect-photo-available" type="checkbox">
             <span>Foto vorhanden</span>
         </label>
-        <input id="defect-photo-link" placeholder="OneDrive-Link zu den Fotos" style="display:none">
         <label for="defect-reported-date">Erfassdatum</label>
         <input id="defect-reported-date" type="date">
         <label for="defect-code-preview">Mangel-ID</label>
@@ -437,6 +441,8 @@
                     <th>Raum</th>
                     <th>Wo im Raum</th>
                     <th>Beschrieb</th>
+                    <th>Bereits vorhanden</th>
+                    <th>Muss behoben werden</th>
                     <th>Erfasser</th>
                     <th>Foto vorhanden</th>
                     <th>Offiziell erledigt</th>
@@ -460,17 +466,7 @@
         <label for="feedback-person-select">Erfasser</label>
         <select id="feedback-person-select"></select>
         <label for="feedback-area">Betroffener Bereich</label>
-        <select id="feedback-area">
-            <option value="Home">Home</option>
-            <option value="Übersicht">Übersicht</option>
-            <option value="Essen">Essen</option>
-            <option value="Wäsche">Wäsche</option>
-            <option value="Gäste">Gäste</option>
-            <option value="Ämtli">Ämtli</option>
-            <option value="Mängel">Mängel</option>
-            <option value="Feedback">Feedback</option>
-            <option value="Events">Events</option>
-        </select>
+        <input id="feedback-area" placeholder="z. B. Home, Übersicht, Essen">
         <label for="feedback-type">Art</label>
         <select id="feedback-type">
             <option value="bug">Fehler melden</option>
@@ -522,7 +518,7 @@
     <h2>Events</h2>
 </section>
 
-<script src="main.js?v=20260323-1"></script>
+<script src="main.js?v=20260323-3"></script>
 </div>
 </body>
 </html>

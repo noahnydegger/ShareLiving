@@ -390,6 +390,14 @@ ul {
     display: block;
 }
 
+.defect-row.is-expanded .description-preview {
+    display: none;
+}
+
+.feedback-row.is-expanded .description-preview {
+    display: none;
+}
+
 .overview-toolbar {
     display: flex;
     flex-wrap: wrap;

@@ -92,44 +92,83 @@ def get_room_conflicts(
     with get_connection() as con:
         with con.cursor() as cur:
             if guest_room_id is None:
-                cur.execute(
-                    """
-                    SELECT gb.id,
-                           p.name AS responsible_name,
-                           gb.room_name,
-                           gb.start_at,
-                           gb.end_at
-                    FROM guestroom_bookings gb
-                    JOIN people p ON gb.person_id = p.id
-                    WHERE gb.house_id = %s
-                      AND gb.person_id = %s
-                      AND gb.guest_room_id IS NULL
-                      AND gb.start_at < %s
-                      AND gb.end_at > %s
-                      AND (%s IS NULL OR gb.id <> %s)
-                    ORDER BY gb.start_at
-                    """,
-                    (house_id, person_id, end_at, start_at, exclude_booking_id, exclude_booking_id),
-                )
+                if exclude_booking_id is None:
+                    cur.execute(
+                        """
+                        SELECT gb.id,
+                               p.name AS responsible_name,
+                               gb.room_name,
+                               gb.start_at,
+                               gb.end_at
+                        FROM guestroom_bookings gb
+                        JOIN people p ON gb.person_id = p.id
+                        WHERE gb.house_id = %s
+                          AND gb.person_id = %s
+                          AND gb.guest_room_id IS NULL
+                          AND gb.start_at < %s
+                          AND gb.end_at > %s
+                        ORDER BY gb.start_at
+                        """,
+                        (house_id, person_id, end_at, start_at),
+                    )
+                else:
+                    cur.execute(
+                        """
+                        SELECT gb.id,
+                               p.name AS responsible_name,
+                               gb.room_name,
+                               gb.start_at,
+                               gb.end_at
+                        FROM guestroom_bookings gb
+                        JOIN people p ON gb.person_id = p.id
+                        WHERE gb.house_id = %s
+                          AND gb.person_id = %s
+                          AND gb.guest_room_id IS NULL
+                          AND gb.start_at < %s
+                          AND gb.end_at > %s
+                          AND gb.id <> %s
+                        ORDER BY gb.start_at
+                        """,
+                        (house_id, person_id, end_at, start_at, exclude_booking_id),
+                    )
             else:
-                cur.execute(
-                    """
-                    SELECT gb.id,
-                           p.name AS responsible_name,
-                           gb.room_name,
-                           gb.start_at,
-                           gb.end_at
-                    FROM guestroom_bookings gb
-                    JOIN people p ON gb.person_id = p.id
-                    WHERE gb.house_id = %s
-                      AND gb.guest_room_id = %s
-                      AND gb.start_at < %s
-                      AND gb.end_at > %s
-                      AND (%s IS NULL OR gb.id <> %s)
-                    ORDER BY gb.start_at
-                    """,
-                    (house_id, guest_room_id, end_at, start_at, exclude_booking_id, exclude_booking_id),
-                )
+                if exclude_booking_id is None:
+                    cur.execute(
+                        """
+                        SELECT gb.id,
+                               p.name AS responsible_name,
+                               gb.room_name,
+                               gb.start_at,
+                               gb.end_at
+                        FROM guestroom_bookings gb
+                        JOIN people p ON gb.person_id = p.id
+                        WHERE gb.house_id = %s
+                          AND gb.guest_room_id = %s
+                          AND gb.start_at < %s
+                          AND gb.end_at > %s
+                        ORDER BY gb.start_at
+                        """,
+                        (house_id, guest_room_id, end_at, start_at),
+                    )
+                else:
+                    cur.execute(
+                        """
+                        SELECT gb.id,
+                               p.name AS responsible_name,
+                               gb.room_name,
+                               gb.start_at,
+                               gb.end_at
+                        FROM guestroom_bookings gb
+                        JOIN people p ON gb.person_id = p.id
+                        WHERE gb.house_id = %s
+                          AND gb.guest_room_id = %s
+                          AND gb.start_at < %s
+                          AND gb.end_at > %s
+                          AND gb.id <> %s
+                        ORDER BY gb.start_at
+                        """,
+                        (house_id, guest_room_id, end_at, start_at, exclude_booking_id),
+                    )
             return cur.fetchall()
 
 

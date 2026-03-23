@@ -3,7 +3,13 @@ from typing import List
 from fastapi import APIRouter, Depends, HTTPException
 
 from data.house_context import get_current_house_id
-from schemas.defects import DefectCreateIn, DefectOut, DefectResolveIn
+from schemas.defects import (
+    DefectCreateIn,
+    DefectOut,
+    DefectResolveIn,
+    DefectSettingsIn,
+    DefectSettingsOut,
+)
 from services import defects_service
 from services.people_service import get_person
 
@@ -14,6 +20,19 @@ router = APIRouter(prefix="/api/defects", tags=["defects"])
 @router.get("", response_model=List[DefectOut])
 def get_defects(house_id: int = Depends(get_current_house_id)):
     return defects_service.list_defects(house_id)
+
+
+@router.get("/settings", response_model=DefectSettingsOut)
+def get_defect_settings(house_id: int = Depends(get_current_house_id)):
+    return {"photo_link": defects_service.get_defect_photo_link(house_id)}
+
+
+@router.put("/settings", response_model=DefectSettingsOut)
+def update_defect_settings(
+    payload: DefectSettingsIn,
+    house_id: int = Depends(get_current_house_id),
+):
+    return {"photo_link": defects_service.set_defect_photo_link(house_id, payload.photo_link)}
 
 
 @router.post("", response_model=DefectOut)
@@ -38,7 +57,6 @@ def add_defect(
             damage_source=payload.damage_source,
             resolution_type=payload.resolution_type,
             photo_available=payload.photo_available,
-            photo_link=payload.photo_link,
             reported_date=payload.reported_date,
         )
     except ValueError as exc:
