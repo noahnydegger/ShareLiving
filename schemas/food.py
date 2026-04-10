@@ -11,9 +11,10 @@ class FoodEntryCreate(BaseModel):
     eats: bool
     cooks: bool
     cook_helper: bool
-    guests: int = 0
+    guest_names: List[str] = []
     take_leftovers_next_day: bool = False
     eating_time: Optional[time] = None
+    time_changed: bool = False
     cooking_group_id: Optional[int] = None
     cooking_group_name: Optional[str] = None
     notes: Optional[str] = None
@@ -30,6 +31,7 @@ class FoodEntryResponse(BaseModel):
     cooks: bool
     cook_helper: bool
     guests: int
+    guest_names: List[str] = []
     take_leftovers_next_day: bool
     eating_time: time
     cooking_group_id: Optional[int] = None

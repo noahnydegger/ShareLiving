@@ -17,7 +17,6 @@
         <div class="nav-dropdown-menu">
             <a href="#" onclick="showSection('guestroom')">Gäste</a>
             <a href="#" onclick="showSection('chores')">Ämtli</a>
-            <a href="#" onclick="showSection('defects')">Mängel</a>
             <a href="#" onclick="showSection('feedback')">Feedback</a>
             <a href="#" onclick="showSection('events')">Events</a>
         </div>
@@ -158,6 +157,9 @@
         <button id="laundry-save-button" onclick="saveLaundryBooking()">Buchung speichern</button>
         <button id="laundry-cancel-button" type="button" style="display:none" onclick="resetLaundryForm()">Abbrechen</button>
         <p id="laundry-add-status"></p>
+        <h3>Nächste 7 Tage</h3>
+        <div id="laundry-overview-calendar" class="overview-calendar overview-calendar--week"></div>
+        <p id="laundry-overview-status"></p>
     </div>
 
     <div id="laundry-list" style="display:none">
@@ -214,7 +216,6 @@
                     <th>Isst</th>
                     <th>Reste für Folgetag</th>
                     <th>Kocht</th>
-                    <th>Hilft</th>
                     <th>Gäste</th>
                     <th>Zeit</th>
                     <th>Stock</th>
@@ -242,7 +243,7 @@
                 </span>
             </label>
         </div>
-        <p>Anzeige Personen: zuerst Personen auf diesem Stock, dann Personen und Reste auf anderem Stock, danach das Total.</p>
+        <p>Anzeige Personen: zuerst Personen auf diesem Stock, danach zusätzliche Personen auf anderem Stock und Reste für den Folgetag, danach das Total.</p>
         <table id="food-summary-table">
             <thead>
                 <tr>
@@ -250,7 +251,6 @@
                     <th>Zeit</th>
                     <th>Stock</th>
                     <th>Koch</th>
-                    <th>Helfer</th>
                     <th>Personen</th>
                 </tr>
             </thead>
@@ -365,7 +365,7 @@
             <label class="switch-row">
                 <span>Meine Ämtli</span>
                 <span class="switch">
-                    <input id="chores-mine-toggle" type="checkbox" onchange="renderChoresOverview()">
+                    <input id="chores-mine-toggle" type="checkbox" checked onchange="renderChoresOverview()">
                     <span class="switch-slider"></span>
                 </span>
             </label>
@@ -383,76 +383,6 @@
             <tbody></tbody>
         </table>
         <p id="chores-overview-status"></p>
-    </div>
-</section>
-
-<section id="defects" class="section-card" style="display:none">
-    <h2>Mängel</h2>
-    <div class="chores-actions">
-        <button type="button" onclick="showDefectAdd()">Mangel erfassen</button>
-        <button type="button" onclick="showDefectList()">Mängel Übersicht</button>
-    </div>
-
-    <div id="defects-add" style="display:none">
-        <div class="panel">
-            <h3>Fotolink</h3>
-            <input id="defect-shared-photo-link" placeholder="OneDrive-Link zu allen Mängel-Fotos">
-            <button type="button" onclick="saveDefectPhotoLink()">Link speichern</button>
-            <p id="defect-shared-photo-display"></p>
-            <p id="defect-shared-photo-status"></p>
-        </div>
-        <label for="defect-person-select">Erfasser</label>
-        <select id="defect-person-select"></select>
-        <input id="defect-room" placeholder="Raum (Stock und Zimmer)">
-        <input id="defect-room-location" placeholder="Wo im Raum">
-        <textarea id="defect-description" placeholder="Beschreibung des Mangels"></textarea>
-        <label for="defect-damage-source">Schadensart</label>
-        <select id="defect-damage-source">
-            <option value="existing">Schaden war bereits vorhanden</option>
-            <option value="self_caused">Schaden selber verursacht</option>
-        </select>
-        <label for="defect-resolution-type">Erfassung</label>
-        <select id="defect-resolution-type">
-            <option value="must_fix">Schaden muss behoben werden</option>
-            <option value="must_record">Schaden muss erfasst werden</option>
-        </select>
-        <label class="checkbox-row">
-            <input id="defect-photo-available" type="checkbox">
-            <span>Foto vorhanden</span>
-        </label>
-        <label for="defect-reported-date">Erfassdatum</label>
-        <input id="defect-reported-date" type="date">
-        <label for="defect-code-preview">Mangel-ID</label>
-        <input id="defect-code-preview" value="Wird automatisch erstellt" readonly>
-        <button type="button" onclick="saveDefect()">Mangel speichern</button>
-        <p id="defect-add-status"></p>
-    </div>
-
-    <div id="defects-list" style="display:none">
-        <div class="filter-toolbar">
-            <div class="segmented-control" role="group" aria-label="Mängel-Filter">
-                <button id="defects-filter-all" type="button" onclick="setDefectFilter('all')">Alle Mängel</button>
-                <button id="defects-filter-open" type="button" onclick="setDefectFilter('open')">Nicht abgeschlossen</button>
-                <button id="defects-filter-mine" type="button" onclick="setDefectFilter('mine')">Eigene Mängel</button>
-            </div>
-        </div>
-        <table id="defects-table">
-            <thead>
-                <tr>
-                    <th>Raum</th>
-                    <th>Wo im Raum</th>
-                    <th>Beschrieb</th>
-                    <th>Bereits vorhanden</th>
-                    <th>Muss behoben werden</th>
-                    <th>Erfasser</th>
-                    <th>Foto vorhanden</th>
-                    <th>Offiziell erledigt</th>
-                    <th>Mangel-ID</th>
-                </tr>
-            </thead>
-            <tbody></tbody>
-        </table>
-        <p id="defects-list-status"></p>
     </div>
 </section>
 
@@ -519,7 +449,7 @@
     <h2>Events</h2>
 </section>
 
-<script src="main.js?v=20260323-3"></script>
+<script src="main.js?v=20260410-19"></script>
 </div>
 </body>
 </html>

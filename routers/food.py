@@ -47,9 +47,10 @@ def save_food_entry(
             eats=payload.eats,
             cooks=payload.cooks,
             cook_helper=payload.cook_helper,
-            guests=payload.guests,
+            guest_names=payload.guest_names,
             take_leftovers_next_day=payload.take_leftovers_next_day,
             eating_time=payload.eating_time,
+            time_changed=payload.time_changed,
             cooking_group_name=payload.cooking_group_name,
             notes=payload.notes,
         )

@@ -400,6 +400,10 @@ ul {
     display: none;
 }
 
+.food-summary-row.is-expanded .description-preview {
+    display: none;
+}
+
 .overview-toolbar {
     display: flex;
     flex-wrap: wrap;

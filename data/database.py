@@ -626,6 +626,12 @@ def init_db():
             )
             cur.execute(
                 """
+                ALTER TABLE food_entries
+                ADD COLUMN IF NOT EXISTS guest_names JSONB NOT NULL DEFAULT '[]'::jsonb
+                """
+            )
+            cur.execute(
+                """
                 DO $$
                 BEGIN
                     IF NOT EXISTS (
@@ -663,6 +669,87 @@ def init_db():
                 """
                 CREATE INDEX IF NOT EXISTS food_entries_house_date_idx
                 ON food_entries (house_id, date)
+                """
+            )
+            cur.execute(
+                """
+                CREATE TABLE IF NOT EXISTS food_meal_settings (
+                    id SERIAL PRIMARY KEY,
+                    house_id INTEGER NOT NULL REFERENCES houses(id),
+                    date DATE NOT NULL,
+                    meal_type TEXT NOT NULL,
+                    cooking_group_name TEXT NULL,
+                    eating_time TIME NOT NULL,
+                    updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+                )
+                """
+            )
+            cur.execute(
+                """
+                ALTER TABLE food_meal_settings
+                ADD COLUMN IF NOT EXISTS cooking_group_name TEXT NULL
+                """
+            )
+            cur.execute(
+                """
+                ALTER TABLE food_meal_settings
+                ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+                """
+            )
+            cur.execute(
+                """
+                ALTER TABLE food_meal_settings
+                DROP CONSTRAINT IF EXISTS food_meal_settings_meal_type_check
+                """
+            )
+            cur.execute(
+                """
+                ALTER TABLE food_meal_settings
+                ADD CONSTRAINT food_meal_settings_meal_type_check
+                CHECK (meal_type IN ('lunch', 'dinner', 'brunch'))
+                """
+            )
+            cur.execute(
+                """
+                CREATE UNIQUE INDEX IF NOT EXISTS food_meal_settings_house_date_meal_group_idx
+                ON food_meal_settings (house_id, date, meal_type, COALESCE(cooking_group_name, ''))
+                """
+            )
+            cur.execute(
+                """
+                INSERT INTO food_meal_settings (
+                    house_id,
+                    date,
+                    meal_type,
+                    cooking_group_name,
+                    eating_time,
+                    updated_at
+                )
+                SELECT DISTINCT ON (
+                    fe.house_id,
+                    fe.date,
+                    fe.meal_type,
+                    COALESCE(fe.cooking_group_name, '')
+                )
+                    fe.house_id,
+                    fe.date,
+                    fe.meal_type,
+                    fe.cooking_group_name,
+                    fe.eating_time,
+                    fe.updated_at
+                FROM food_entries AS fe
+                LEFT JOIN food_meal_settings AS fms
+                  ON fms.house_id = fe.house_id
+                 AND fms.date = fe.date
+                 AND fms.meal_type = fe.meal_type
+                 AND fms.cooking_group_name IS NOT DISTINCT FROM fe.cooking_group_name
+                WHERE fms.id IS NULL
+                ORDER BY fe.house_id,
+                         fe.date,
+                         fe.meal_type,
+                         COALESCE(fe.cooking_group_name, ''),
+                         fe.updated_at DESC,
+                         fe.id DESC
                 """
             )
             cur.execute(

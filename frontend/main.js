@@ -10,8 +10,8 @@ let currentChores = [];
 let currentDefects = [];
 let currentFeedback = [];
 let currentDefectPhotoLink = "";
-let currentFoodAddWeekStart = getMonday(new Date());
-let currentFoodSummaryWeekStart = getMonday(new Date());
+let currentFoodAddWeekStart = getFoodWeekStart(new Date());
+let currentFoodSummaryWeekStart = getFoodWeekStart(new Date());
 let currentOverviewView = "week";
 let currentOverviewDate = getMonday(new Date());
 let currentOverviewEvents = [];
@@ -97,11 +97,11 @@ function showSection(id) {
         resetOverviewFilters();
         loadOverviewData();
     }
-    if (id === "chores" && getHouseToken()) {
-        showChoresManage();
+    if (id === "food" && getHouseToken()) {
+        showFoodSummary();
     }
-    if (id === "defects" && getHouseToken()) {
-        showDefectAdd();
+    if (id === "chores" && getHouseToken()) {
+        showChoresOverview();
     }
     if (id === "feedback" && getHouseToken()) {
         showFeedbackAdd();
@@ -731,6 +731,10 @@ function showChoresManage() {
 }
 
 function showChoresOverview() {
+    const mineToggle = getElement("chores-mine-toggle");
+    if (mineToggle) {
+        mineToggle.checked = true;
+    }
     setElementDisplay("chores-manage", "none");
     setElementDisplay("chores-overview", "block");
     if (getHouseToken()) {
@@ -1559,6 +1563,15 @@ function getMonday(date) {
     return monday;
 }
 
+function getFoodWeekStart(date) {
+    const friday = cloneDate(date);
+    friday.setHours(0, 0, 0, 0);
+    const day = friday.getDay();
+    const daysSinceFriday = (day + 2) % 7;
+    friday.setDate(friday.getDate() - daysSinceFriday);
+    return friday;
+}
+
 function addDays(date, days) {
     const copy = cloneDate(date);
     copy.setDate(copy.getDate() + days);
@@ -1571,6 +1584,14 @@ function formatWeekLabel(weekStart) {
 }
 
 function getWeekDates(weekStart = getMonday(new Date())) {
+    const dates = [];
+    for (let i = 0; i < 7; i += 1) {
+        dates.push(formatDate(addDays(weekStart, i)));
+    }
+    return dates;
+}
+
+function getFoodWeekDates(weekStart = getFoodWeekStart(new Date())) {
     const dates = [];
     for (let i = 0; i < 7; i += 1) {
         dates.push(formatDate(addDays(weekStart, i)));
@@ -1734,11 +1755,20 @@ function buildLaundryEvents(laundryEntries) {
         type: "laundry",
         date: entry.date,
         title: `${entry.start_time.slice(0, 5)}–${entry.end_time.slice(0, 5)}`,
-        subtitle: entry.person_name,
-        detail: `Waschmaschine ${entry.machine}`,
+        subtitle: entry.machine,
+        detail: entry.person_name,
         sortMinutes: Number(entry.start_time.slice(0, 2)) * 60 + Number(entry.start_time.slice(3, 5)),
         personIds: [String(entry.person_id)],
     }));
+}
+
+function getEventsForDate(dateValue, events) {
+    return events.filter((event) => event.date === dateValue).sort((left, right) => {
+        if ((left.sortMinutes ?? 9999) !== (right.sortMinutes ?? 9999)) {
+            return (left.sortMinutes ?? 9999) - (right.sortMinutes ?? 9999);
+        }
+        return left.title.localeCompare(right.title, "de-CH");
+    });
 }
 
 function getDurationDays(startValue, endValue) {
@@ -1884,6 +1914,39 @@ function renderOverviewWeek() {
     }).join("");
 }
 
+function renderLaundryOverviewWeek(events) {
+    const calendar = getElement("laundry-overview-calendar");
+    const status = getElement("laundry-overview-status");
+    if (!calendar || !status) {
+        return;
+    }
+
+    const startDate = new Date();
+    startDate.setHours(0, 0, 0, 0);
+    const weekDates = Array.from({ length: 7 }, (_, index) => formatDate(addDays(startDate, index)));
+
+    calendar.className = "overview-calendar overview-calendar--week";
+    calendar.innerHTML = weekDates.map((dateValue) => {
+        const date = new Date(`${dateValue}T00:00:00`);
+        const dayLabel = date.toLocaleDateString("de-CH", { weekday: "long" });
+        const dayEvents = getEventsForDate(dateValue, events);
+
+        return `
+            <div class="calendar-day-card${isToday(dateValue) ? " calendar-day-card--today" : ""}">
+                <div class="calendar-day-header">
+                    <strong>${dayLabel}</strong>
+                    <span>${formatMonthDay(dateValue)}</span>
+                </div>
+                <div class="calendar-day-events">
+                    ${dayEvents.length ? dayEvents.map(createOverviewEventHtml).join("") : '<p class="calendar-empty">Keine Einträge</p>'}
+                </div>
+            </div>
+        `;
+    }).join("");
+
+    status.innerText = events.length ? "" : "Keine Wäscheeinträge in den nächsten 7 Tagen.";
+}
+
 function renderOverviewMonth() {
     const calendar = getElement("overview-calendar");
     if (!calendar) {
@@ -2004,6 +2067,7 @@ function showLaundryAdd() {
     setElementDisplay("laundry-list", "none");
     syncPersonSelectors();
     updateLaundryFormUi();
+    loadLaundryOverview();
 }
 
 function startNewLaundryBooking() {
@@ -2014,7 +2078,7 @@ function startNewLaundryBooking() {
 function showLaundryList() {
     setElementDisplay("laundry-add", "none");
     setElementDisplay("laundry-list", "block");
-    loadLaundry();
+    loadLaundry(true);
 }
 
 function changeLaundryPage(direction) {
@@ -2179,7 +2243,40 @@ async function deleteLaundryBooking(bookingId) {
     loadLaundry();
 }
 
-async function loadLaundry() {
+async function loadLaundryOverview() {
+    const status = getElement("laundry-overview-status");
+    const calendar = getElement("laundry-overview-calendar");
+    if (!status || !calendar) {
+        return;
+    }
+
+    status.innerText = "";
+    const response = await apiFetch("/api/laundry");
+    if (!response.ok) {
+        status.innerText = "Wäscheübersicht konnte nicht geladen werden.";
+        return;
+    }
+
+    const todayDate = new Date();
+    todayDate.setHours(0, 0, 0, 0);
+    const today = formatDate(todayDate);
+    const endDate = formatDate(addDays(todayDate, 6));
+    const entries = (await response.json())
+        .filter((entry) => entry.date >= today && entry.date <= endDate)
+        .sort((left, right) => {
+            if (left.date !== right.date) {
+                return left.date.localeCompare(right.date);
+            }
+            if (left.start_time !== right.start_time) {
+                return left.start_time.localeCompare(right.start_time);
+            }
+            return left.id - right.id;
+        });
+
+    renderLaundryOverviewWeek(buildLaundryEvents(entries));
+}
+
+async function loadLaundry(resetToUpcoming = false) {
     const status = getElement("laundry-list-status");
     const tableBody = getOptionalElement("#laundry-table tbody");
     const prevButton = getElement("laundry-prev-button");
@@ -2200,7 +2297,6 @@ async function loadLaundry() {
     const today = formatDate(new Date());
     const selectedPersonId = getSelectedPersonId();
     currentLaundryListEntries = (await response.json())
-        .filter((entry) => entry.date >= today)
         .filter((entry) => !(mineToggle?.checked && selectedPersonId) || String(entry.person_id) === String(selectedPersonId))
         .sort((left, right) => {
             if (left.date !== right.date) {
@@ -2212,7 +2308,20 @@ async function loadLaundry() {
             return left.id - right.id;
         });
 
-    if (currentLaundryOffset >= currentLaundryListEntries.length && currentLaundryOffset > 0) {
+    if (resetToUpcoming) {
+        const firstUpcomingIndex = currentLaundryListEntries.findIndex((entry) => entry.date >= today);
+        if (firstUpcomingIndex >= 0) {
+            currentLaundryOffset = firstUpcomingIndex;
+        } else {
+            currentLaundryOffset = currentLaundryListEntries.length;
+        }
+    }
+
+    if (
+        currentLaundryOffset >= currentLaundryListEntries.length
+        && currentLaundryOffset > 0
+        && !(resetToUpcoming && !currentLaundryListEntries.some((entry) => entry.date >= today))
+    ) {
         currentLaundryOffset = Math.max(0, currentLaundryOffset - 10);
     }
 
@@ -2287,11 +2396,11 @@ function updateBrunchAvailability() {
 
 function getMealRowsForWeek(weekStart) {
     const rows = [];
-    const weekDates = getWeekDates(weekStart);
-    weekDates.forEach((dateValue, index) => {
+    const weekDates = getFoodWeekDates(weekStart);
+    weekDates.forEach((dateValue) => {
         rows.push({ date: dateValue, mealType: "lunch" });
         rows.push({ date: dateValue, mealType: "dinner" });
-        if (index === 6) {
+        if (new Date(`${dateValue}T00:00:00`).getDay() === 0) {
             rows.push({ date: dateValue, mealType: "brunch" });
         }
     });
@@ -2359,14 +2468,76 @@ function setFoodAddStatus(message) {
     }
 }
 
+function normalizeGuestNames(guestNames) {
+    return (guestNames || []).map((name) => String(name || "").trim()).filter(Boolean);
+}
+
+function buildGuestNameInputs(guestNames) {
+    const normalizedGuestNames = normalizeGuestNames(guestNames);
+    const values = [...normalizedGuestNames, ""];
+    return `
+        <div class="food-guest-names">
+            ${values.map((guestName) => (
+                `<input class="food-guest-name" type="text" value="${escapeHtml(guestName)}" placeholder="Name des Gasts">`
+            )).join("")}
+        </div>
+    `;
+}
+
 function getFoodRowInputs(row) {
     return {
         eatsInput: getOptionalChild(row, ".food-eats"),
         cooksInput: getOptionalChild(row, ".food-cooks"),
-        cookHelperInput: getOptionalChild(row, ".food-cook-helper"),
         cookingGroupSelect: getOptionalChild(row, ".food-cooking-group-select"),
         cookingGroupCustomInput: getOptionalChild(row, ".food-cooking-group-custom"),
     };
+}
+
+function getFoodGuestNames(row) {
+    return normalizeGuestNames(Array.from(row.querySelectorAll(".food-guest-name")).map((input) => input.value));
+}
+
+function syncGuestNameInputs(row, preserveInput = null) {
+    const container = getOptionalChild(row, ".food-guest-names");
+    if (!container) {
+        return;
+    }
+    const existingInputs = Array.from(container.querySelectorAll(".food-guest-name"));
+    const guestNames = normalizeGuestNames(existingInputs.map((input) => input.value));
+    const activeIndex = preserveInput ? existingInputs.indexOf(preserveInput) : -1;
+    const activeValue = preserveInput ? preserveInput.value : "";
+    container.innerHTML = [...guestNames, ""]
+        .map((guestName) => `<input class="food-guest-name" type="text" value="${escapeHtml(guestName)}" placeholder="Name des Gasts">`)
+        .join("");
+    attachGuestNameInputListeners(row);
+
+    if (activeIndex >= 0) {
+        const nextInputs = Array.from(container.querySelectorAll(".food-guest-name"));
+        const nextInput = nextInputs[Math.min(activeIndex, nextInputs.length - 1)];
+        if (nextInput) {
+            nextInput.focus();
+            nextInput.setSelectionRange(activeValue.length, activeValue.length);
+        }
+    }
+}
+
+function attachGuestNameInputListeners(row) {
+    row.querySelectorAll(".food-guest-name").forEach((input) => {
+        input.addEventListener("input", () => {
+            const container = getOptionalChild(row, ".food-guest-names");
+            if (!container) {
+                return;
+            }
+            const inputs = Array.from(container.querySelectorAll(".food-guest-name"));
+            const isLastInput = inputs[inputs.length - 1] === input;
+            if (isLastInput && input.value.trim()) {
+                syncGuestNameInputs(row, input);
+            }
+        });
+        input.addEventListener("blur", () => {
+            syncGuestNameInputs(row);
+        });
+    });
 }
 
 function buildFoodGroupOptions(groupSuggestions, selectedGroupName) {
@@ -2429,26 +2600,14 @@ function validateFoodPlannerRow(row, options = {}) {
     const { showMessage = true, changedField = "" } = options;
     const personSelect = getElement("food-person-select");
     const personId = personSelect?.value || getSelectedPersonId();
-    const { cooksInput, cookHelperInput, cookingGroupSelect, cookingGroupCustomInput } = getFoodRowInputs(row);
-    if (!personId || !cooksInput || !cookHelperInput || !cookingGroupSelect || !cookingGroupCustomInput) {
+    const { cooksInput, cookingGroupSelect, cookingGroupCustomInput } = getFoodRowInputs(row);
+    if (!personId || !cooksInput || !cookingGroupSelect || !cookingGroupCustomInput) {
         return true;
     }
 
     const dateValue = row.dataset.date;
     const mealType = row.dataset.mealType;
     const cookingGroupName = getFoodRowGroupName(row);
-
-    if (cooksInput.checked && cookHelperInput.checked) {
-        if (changedField === "cooks") {
-            cooksInput.checked = false;
-        } else if (changedField === "helper") {
-            cookHelperInput.checked = false;
-        }
-        if (showMessage) {
-            setFoodAddStatus("Eine Person kann pro Mahlzeit nur Koch oder Helfer sein, nicht beides.");
-        }
-        return false;
-    }
 
     if (cooksInput.checked) {
         const conflictingEntry = findExistingCookConflict(personId, dateValue, mealType, cookingGroupName);
@@ -2487,19 +2646,18 @@ function validateFoodPlannerRow(row, options = {}) {
 }
 
 function attachFoodRowValidation(row) {
-    const { cooksInput, cookHelperInput, cookingGroupSelect, cookingGroupCustomInput } = getFoodRowInputs(row);
-    if (!cooksInput || !cookHelperInput || !cookingGroupSelect || !cookingGroupCustomInput) {
+    const { cooksInput, cookingGroupSelect, cookingGroupCustomInput } = getFoodRowInputs(row);
+    const timeInput = getOptionalChild(row, ".food-time");
+    if (!cooksInput || !cookingGroupSelect || !cookingGroupCustomInput) {
         return;
     }
 
     row.dataset.prevCookingGroupValue = getFoodRowGroupName(row);
+    row.dataset.timeChanged = "false";
     updateFoodGroupInputVisibility(row);
 
     cooksInput.addEventListener("change", () => {
         validateFoodPlannerRow(row, { changedField: "cooks" });
-    });
-    cookHelperInput.addEventListener("change", () => {
-        validateFoodPlannerRow(row, { changedField: "helper" });
     });
     cookingGroupSelect.addEventListener("change", () => {
         updateFoodGroupInputVisibility(row);
@@ -2508,6 +2666,10 @@ function attachFoodRowValidation(row) {
     cookingGroupCustomInput.addEventListener("input", () => {
         validateFoodPlannerRow(row, { changedField: "group" });
     });
+    timeInput?.addEventListener("change", () => {
+        row.dataset.timeChanged = "true";
+    });
+    attachGuestNameInputListeners(row);
 }
 
 function renderFoodWeekTable(entries) {
@@ -2537,13 +2699,13 @@ function renderFoodWeekTable(entries) {
         const row = document.createElement("tr");
         row.dataset.date = rowData.date;
         row.dataset.mealType = rowData.mealType;
+        row.id = `food-row-${rowData.date}-${rowData.mealType}`;
         row.innerHTML = `
             <td>${formatPlannerDateLabel(rowData.date, rowData.mealType)}</td>
             <td><input class="food-eats" type="checkbox" ${entry?.eats ? "checked" : ""}></td>
             <td><input class="food-leftovers" type="checkbox" ${entry?.take_leftovers_next_day ? "checked" : ""} ${rowData.mealType !== "lunch" ? "disabled" : ""}></td>
             <td><input class="food-cooks" type="checkbox" ${entry?.cooks ? "checked" : ""}></td>
-            <td><input class="food-cook-helper" type="checkbox" ${entry?.cook_helper ? "checked" : ""}></td>
-            <td><input class="food-guests" type="number" min="0" step="1" value="${entry?.guests ?? 0}"></td>
+            <td>${buildGuestNameInputs(entry?.guest_names || [])}</td>
             <td><input class="food-time" type="time" value="${entry?.eating_time ?? getDefaultMealTime(rowData.mealType)}"></td>
             <td>
                 <select class="food-cooking-group-select">
@@ -2558,7 +2720,7 @@ function renderFoodWeekTable(entries) {
 }
 
 async function loadFoodWeekForAdd() {
-    const weekDates = getWeekDates(currentFoodAddWeekStart);
+    const weekDates = getFoodWeekDates(currentFoodAddWeekStart);
     const response = await apiFetch(`/api/food?start_date=${weekDates[0]}&end_date=${weekDates[weekDates.length - 1]}`);
     if (!response.ok) {
         const status = getElement("food-add-status");
@@ -2577,7 +2739,7 @@ function changeFoodAddWeek(offset) {
 }
 
 function goToTodayFoodAdd() {
-    currentFoodAddWeekStart = getMonday(new Date());
+    currentFoodAddWeekStart = getFoodWeekStart(new Date());
     loadFoodWeekForAdd();
 }
 
@@ -2604,8 +2766,6 @@ async function saveFoodWeek() {
     for (const row of rows) {
         const eatsInput = getOptionalChild(row, ".food-eats");
         const cooksInput = getOptionalChild(row, ".food-cooks");
-        const cookHelperInput = getOptionalChild(row, ".food-cook-helper");
-        const guestsInput = getOptionalChild(row, ".food-guests");
         const leftoversInput = getOptionalChild(row, ".food-leftovers");
         const timeInput = getOptionalChild(row, ".food-time");
         const cookingGroupSelect = getOptionalChild(row, ".food-cooking-group-select");
@@ -2614,8 +2774,6 @@ async function saveFoodWeek() {
         if (
             !eatsInput
             || !cooksInput
-            || !cookHelperInput
-            || !guestsInput
             || !leftoversInput
             || !timeInput
             || !cookingGroupSelect
@@ -2635,10 +2793,11 @@ async function saveFoodWeek() {
             meal_type: row.dataset.mealType,
             eats: eatsInput.checked,
             cooks: cooksInput.checked,
-            cook_helper: cookHelperInput.checked,
-            guests: Number(guestsInput.value || "0"),
+            cook_helper: false,
+            guest_names: getFoodGuestNames(row),
             take_leftovers_next_day: leftoversInput.checked,
             eating_time: timeInput.value || getDefaultMealTime(row.dataset.mealType),
+            time_changed: row.dataset.timeChanged === "true",
             cooking_group_name: getFoodRowGroupName(row),
         };
 
@@ -2700,34 +2859,33 @@ function createFoodMealBuckets(entries) {
                 floorName,
                 entries: [],
                 cooks: [],
-                helpers: [],
                 ownPeopleTotal: 0,
                 leftoversCount: 0,
                 latestTime: entry.eating_time || getDefaultMealTime(entry.meal_type),
                 latestUpdatedAt: entry.updated_at || "",
                 ownParticipantIds: new Set(),
-                staffIds: new Set(),
+                ownEatNames: [],
+                ownGuestNames: [],
+                leftoversNames: [],
             });
         }
 
         const bucket = buckets.get(key);
         bucket.entries.push(entry);
-        if (entry.eats || entry.cooks || entry.cook_helper) {
+        if (entry.eats || entry.cooks) {
             bucket.ownParticipantIds.add(String(entry.person_id));
         }
         if (entry.cooks) {
             bucket.cooks.push(entry.person_name);
-            bucket.staffIds.add(String(entry.person_id));
-        }
-        if (entry.cook_helper) {
-            bucket.helpers.push(entry.person_name);
-            bucket.staffIds.add(String(entry.person_id));
         }
         if (entry.eats) {
             bucket.ownPeopleTotal += 1 + Number(entry.guests || 0);
+            bucket.ownEatNames.push(entry.person_name);
+            bucket.ownGuestNames.push(...normalizeGuestNames(entry.guest_names));
         }
         if (entry.take_leftovers_next_day) {
             bucket.leftoversCount += 1;
+            bucket.leftoversNames.push(entry.person_name);
         }
         if ((entry.updated_at || "") >= (bucket.latestUpdatedAt || "")) {
             bucket.latestTime = entry.eating_time || bucket.latestTime;
@@ -2762,36 +2920,112 @@ function buildAggregatedFoodRows(entries) {
         mealBuckets.forEach((bucket) => {
             const sourceBucket = bucket.cooks.length ? bucket : (bucket.floorName !== "EG" && egBucket?.cooks.length ? egBucket : bucket);
             const ownTotal = bucket.ownPeopleTotal;
-            const additionalTotal = bucket.floorName === "EG"
-                ? dependentBuckets.reduce((sum, dependentBucket) => (
-                    sum + dependentBucket.ownPeopleTotal + dependentBucket.leftoversCount
-                ), 0)
+            const additionalFloorPeopleTotal = bucket.floorName === "EG"
+                ? dependentBuckets.reduce((sum, dependentBucket) => sum + dependentBucket.ownPeopleTotal, 0)
                 : 0;
+            const ownLeftoversTotal = bucket.leftoversCount;
+            const dependentLeftoversTotal = bucket.floorName === "EG"
+                ? dependentBuckets.reduce((sum, dependentBucket) => sum + dependentBucket.leftoversCount, 0)
+                : 0;
+            const additionalLeftoversTotal = ownLeftoversTotal + dependentLeftoversTotal;
+            const additionalTotal = additionalFloorPeopleTotal + additionalLeftoversTotal;
             const displayCooks = sourceBucket.cooks.length
                 ? sourceBucket.cooks.map((cookName) => (
                     sourceBucket.floorName === bucket.floorName ? cookName : `${cookName} (${sourceBucket.floorName})`
                 ))
                 : [];
-            const participantIds = new Set(bucket.ownParticipantIds);
-            sourceBucket.staffIds.forEach((staffId) => participantIds.add(staffId));
 
             rows.push({
                 date: bucket.date,
                 mealType: bucket.mealType,
                 floorName: bucket.floorName,
                 displayCooks,
-                helpers: bucket.helpers,
                 ownPeopleTotal: ownTotal,
+                additionalFloorPeopleTotal,
+                additionalLeftoversTotal,
                 additionalPeopleTotal: additionalTotal,
                 combinedPeopleTotal: ownTotal + additionalTotal,
                 eatingTime: bucket.latestTime,
                 latestTime: bucket.latestTime,
-                personIds: Array.from(participantIds),
+                personIds: Array.from(bucket.ownParticipantIds),
+                ownEatNames: bucket.ownEatNames,
+                ownGuestNames: bucket.ownGuestNames,
+                leftoversNames: bucket.leftoversNames,
+                additionalFloorDetails: bucket.floorName === "EG"
+                    ? dependentBuckets.map((dependentBucket) => ({
+                        floorName: dependentBucket.floorName,
+                        eatNames: dependentBucket.ownEatNames,
+                        guestNames: dependentBucket.ownGuestNames,
+                        leftoversNames: dependentBucket.leftoversNames,
+                    }))
+                    : [],
             });
         });
     });
 
     return rows;
+}
+
+function formatParticipantLines(entry) {
+    const lines = [];
+    if (entry.ownEatNames.length) {
+        lines.push({
+            label: `${entry.floorName}:`,
+            names: entry.ownEatNames,
+        });
+    }
+    if (entry.ownGuestNames.length) {
+        lines.push({
+            label: "Gäste:",
+            names: entry.ownGuestNames,
+        });
+    }
+    entry.additionalFloorDetails.forEach((detail) => {
+        if (detail.eatNames.length) {
+            lines.push({
+                label: `${detail.floorName}:`,
+                names: detail.eatNames,
+            });
+        }
+        if (detail.guestNames.length) {
+            lines.push({
+                label: `Gäste ${detail.floorName}:`,
+                names: detail.guestNames,
+            });
+        }
+    });
+    if (entry.leftoversNames.length) {
+        lines.push({
+            label: "Reste:",
+            names: entry.leftoversNames,
+        });
+    }
+    return lines;
+}
+
+function formatParticipantLineHtml(label, names) {
+    if (!names.length) {
+        return "";
+    }
+    const chunkSize = 4;
+    const chunks = [];
+    for (let index = 0; index < names.length; index += chunkSize) {
+        chunks.push(names.slice(index, index + chunkSize));
+    }
+    return chunks.map((chunk, index) => (
+        `<div>${index === 0 ? `<strong>${escapeHtml(label)}</strong> ` : ""}${escapeHtml(chunk.join(", "))}</div>`
+    )).join("");
+}
+
+function getFoodPeopleBreakdownLabel(entry) {
+    const parts = [];
+    if (entry.additionalFloorPeopleTotal > 0) {
+        parts.push(`anderer Stock: ${entry.additionalFloorPeopleTotal}`);
+    }
+    if (entry.additionalLeftoversTotal > 0) {
+        parts.push(`Reste: ${entry.additionalLeftoversTotal}`);
+    }
+    return parts.join(" · ");
 }
 
 function buildSummaryRows(entries) {
@@ -2836,25 +3070,33 @@ function buildSummaryRows(entries) {
 
     summaryRows.forEach((entry) => {
         const row = document.createElement("tr");
+        row.className = "expandable-row food-summary-row";
+        const participantLines = formatParticipantLines(entry);
         row.innerHTML = `
-            <td>${formatWeekdayDateLabel(entry.date)}</td>
+            <td>
+                <span class="description-preview">${formatWeekdayDateLabel(entry.date)}</span>
+                <span class="description-full">${participantLines.length ? participantLines.map((line) => formatParticipantLineHtml(line.label, line.names)).join("") : "Keine Teilnehmenden."}</span>
+            </td>
             <td>${formatTimeValue(entry.eatingTime)}</td>
             <td>${entry.floorName}</td>
             <td>${entry.displayCooks.length ? entry.displayCooks.join(", ") : ""}</td>
-            <td>${entry.helpers.length ? entry.helpers.join(", ") : ""}</td>
-            <td>${formatFoodPeopleSummary(entry.ownPeopleTotal, entry.additionalPeopleTotal)}</td>
+            <td title="${escapeHtml(getFoodPeopleBreakdownLabel(entry))}">${formatFoodPeopleSummary(entry.ownPeopleTotal, entry.additionalPeopleTotal)}</td>
         `;
+        row.addEventListener("click", () => {
+            row.classList.toggle("is-expanded");
+        });
         tbody.appendChild(row);
     });
 }
 
 async function loadFoodSummary() {
-    const weekDates = getWeekDates(currentFoodSummaryWeekStart);
+    const weekDates = getFoodWeekDates(currentFoodSummaryWeekStart);
     const response = await apiFetch(`/api/food?start_date=${weekDates[0]}&end_date=${weekDates[weekDates.length - 1]}`);
     if (!response.ok) {
         const status = getElement("food-summary-status");
         if (status) {
-            status.innerText = "Essensübersicht konnte nicht geladen werden.";
+            const error = await response.text();
+            status.innerText = `Essensübersicht konnte nicht geladen werden: ${error}`;
         }
         return;
     }
@@ -2867,7 +3109,7 @@ function changeFoodSummaryWeek(offset) {
 }
 
 function goToTodayFoodSummary() {
-    currentFoodSummaryWeekStart = getMonday(new Date());
+    currentFoodSummaryWeekStart = getFoodWeekStart(new Date());
     loadFoodSummary();
 }
 
@@ -2903,7 +3145,7 @@ function startNewGuestroomBooking() {
 async function showGuestroomList() {
     setElementDisplay("guestroom-add", "none");
     setElementDisplay("guestroom-list", "block");
-    await loadGuestroomBookings();
+    await loadGuestroomBookings(true);
 }
 
 function changeGuestroomPage(direction) {
@@ -3123,7 +3365,7 @@ async function deleteGuestroomBooking(bookingId) {
     loadGuestroomBookings();
 }
 
-async function loadGuestroomBookings() {
+async function loadGuestroomBookings(resetToUpcoming = false) {
     const status = getElement("guestroom-list-status");
     const tableBody = getOptionalElement("#guestroom-table tbody");
     const prevButton = getElement("guestroom-prev-button");
@@ -3144,7 +3386,6 @@ async function loadGuestroomBookings() {
     const today = formatDate(new Date());
     const selectedPersonId = getSelectedPersonId();
     currentGuestroomListEntries = (await response.json())
-        .filter((entry) => String(entry.end_at).slice(0, 10) >= today)
         .filter((entry) => !(mineToggle?.checked && selectedPersonId) || String(entry.person_id) === String(selectedPersonId))
         .sort((left, right) => {
             if (left.start_at !== right.start_at) {
@@ -3153,7 +3394,20 @@ async function loadGuestroomBookings() {
             return left.id - right.id;
         });
 
-    if (currentGuestroomOffset >= currentGuestroomListEntries.length && currentGuestroomOffset > 0) {
+    if (resetToUpcoming) {
+        const firstUpcomingIndex = currentGuestroomListEntries.findIndex((entry) => String(entry.end_at).slice(0, 10) >= today);
+        if (firstUpcomingIndex >= 0) {
+            currentGuestroomOffset = firstUpcomingIndex;
+        } else {
+            currentGuestroomOffset = currentGuestroomListEntries.length;
+        }
+    }
+
+    if (
+        currentGuestroomOffset >= currentGuestroomListEntries.length
+        && currentGuestroomOffset > 0
+        && !(resetToUpcoming && !currentGuestroomListEntries.some((entry) => String(entry.end_at).slice(0, 10) >= today))
+    ) {
         currentGuestroomOffset = Math.max(0, currentGuestroomOffset - 10);
     }
 
@@ -3216,7 +3470,7 @@ function initFoodPage() {
         foodDateInput.addEventListener("change", updateBrunchAvailability);
     }
 
-    showFoodAdd();
+    showFoodSummary();
 }
 
 function initOverviewPage() {
@@ -3235,34 +3489,17 @@ function initChoresPage() {
     const choresSection = getElement("chores");
     const choresManage = getElement("chores-manage");
     const choresOverview = getElement("chores-overview");
+    const mineToggle = getElement("chores-mine-toggle");
     if (!choresSection || !choresManage || !choresOverview) {
         return;
     }
-    setElementDisplay("chores-manage", "block");
-    setElementDisplay("chores-overview", "none");
+    if (mineToggle) {
+        mineToggle.checked = true;
+    }
+    setElementDisplay("chores-manage", "none");
+    setElementDisplay("chores-overview", "block");
     if (getHouseToken()) {
         loadChores();
-    }
-}
-
-function initDefectsPage() {
-    const defectsSection = getElement("defects");
-    const defectsAdd = getElement("defects-add");
-    const defectsList = getElement("defects-list");
-    if (!defectsSection || !defectsAdd || !defectsList) {
-        return;
-    }
-    setElementDisplay("defects-add", "block");
-    setElementDisplay("defects-list", "none");
-    setDefectFilter("all");
-    const reportedDateInput = getElement("defect-reported-date");
-    if (reportedDateInput && !reportedDateInput.value) {
-        reportedDateInput.value = formatDate(new Date());
-    }
-    renderDefectPhotoLink();
-    updateDefectCodePreview();
-    if (getHouseToken()) {
-        loadDefects();
     }
 }
 
@@ -3337,7 +3574,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     initOverviewPage();
     initGuestroomPage();
     initChoresPage();
-    initDefectsPage();
     initFeedbackPage();
 
     if (getHouseToken()) {
