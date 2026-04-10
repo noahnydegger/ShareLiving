@@ -755,8 +755,7 @@ ul {
     .overview-toolbar,
     .laundry-actions,
     .food-actions,
-    .guestroom-actions,
-    .overview-filters {
+    .guestroom-actions {
         flex-direction: column;
         align-items: stretch;
     }
@@ -864,6 +863,12 @@ ul {
 
     .overview-filters {
         align-items: flex-start;
+    }
+
+    #overview .overview-filters {
+        flex-direction: row;
+        align-items: center;
+        flex-wrap: wrap;
     }
 
 .food-summary-note {
