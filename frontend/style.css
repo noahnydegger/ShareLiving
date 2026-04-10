@@ -866,9 +866,24 @@ ul {
         align-items: flex-start;
     }
 
-    .food-summary-note {
-        margin-top: 0.85rem;
-    }
+.food-summary-note {
+    margin-top: 0.85rem;
+}
+
+#food .week-nav {
+    flex-direction: row;
+    align-items: center;
+    justify-content: flex-start;
+}
+
+#food .week-nav strong {
+    margin-right: 0.1rem;
+}
+
+#food .week-nav-controls {
+    justify-content: flex-start;
+    width: auto;
+}
 
     .switch-row {
         padding: 0.55rem 0.75rem;

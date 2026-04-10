@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <title>ShareLiving</title>
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="style.css?v=20260410-41">
 </head>
 <body>
 <div class="page-shell">
@@ -208,12 +208,12 @@
         <label for="food-person-select">Person</label>
         <select id="food-person-select"></select>
         <div class="week-nav">
+            <strong id="food-add-week-label"></strong>
             <div class="week-nav-controls">
-                <button type="button" onclick="goToTodayFoodAdd()">Heute</button>
                 <button type="button" onclick="changeFoodAddWeek(-1)">←</button>
                 <button type="button" onclick="changeFoodAddWeek(1)">→</button>
+                <button type="button" onclick="goToTodayFoodAdd()">Heute</button>
             </div>
-            <strong id="food-add-week-label"></strong>
         </div>
         <table id="food-add-table">
             <thead>
@@ -236,12 +236,12 @@
 
     <div id="food-summary" style="display:none">
         <div class="week-nav">
+            <strong id="food-summary-week-label"></strong>
             <div class="week-nav-controls">
-                <button type="button" onclick="goToTodayFoodSummary()">Heute</button>
                 <button type="button" onclick="changeFoodSummaryWeek(-1)">←</button>
                 <button type="button" onclick="changeFoodSummaryWeek(1)">→</button>
+                <button type="button" onclick="goToTodayFoodSummary()">Heute</button>
             </div>
-            <strong id="food-summary-week-label"></strong>
         </div>
         <div class="overview-filters">
             <label class="switch-row">
