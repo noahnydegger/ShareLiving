@@ -55,6 +55,27 @@ function getOptionalChild(element, selector) {
     return element.querySelector(selector);
 }
 
+function applyResponsiveCellLabels(row, labels) {
+    if (!row) {
+        return;
+    }
+    Array.from(row.children).forEach((cell, index) => {
+        if (labels[index]) {
+            cell.setAttribute("data-label", labels[index]);
+        }
+    });
+}
+
+function isMobileLayout() {
+    return window.matchMedia("(max-width: 640px)").matches;
+}
+
+function getFoodPlanEntries() {
+    return isMobileLayout()
+        ? getOptionalElements("#food-add-mobile-list .food-plan-card")
+        : getOptionalElements("#food-add-table tbody tr");
+}
+
 function setElementDisplay(id, value) {
     const element = getElement(id);
     if (element) {
@@ -1886,6 +1907,15 @@ function toggleOverviewEventDetails(element) {
     element.classList.toggle("is-expanded");
 }
 
+function toggleMobileCardDetails(button) {
+    const card = button?.closest(".mobile-card--collapsible");
+    if (!card) {
+        return;
+    }
+    card.classList.toggle("is-expanded");
+    button.setAttribute("aria-expanded", card.classList.contains("is-expanded") ? "true" : "false");
+}
+
 function renderOverviewWeek() {
     const calendar = getElement("overview-calendar");
     if (!calendar) {
@@ -2279,6 +2309,7 @@ async function loadLaundryOverview() {
 async function loadLaundry(resetToUpcoming = false) {
     const status = getElement("laundry-list-status");
     const tableBody = getOptionalElement("#laundry-table tbody");
+    const mobileList = getElement("laundry-mobile-list");
     const prevButton = getElement("laundry-prev-button");
     const nextButton = getElement("laundry-next-button");
     const mineToggle = getElement("laundry-mine-toggle");
@@ -2287,6 +2318,9 @@ async function loadLaundry(resetToUpcoming = false) {
     }
     status.innerText = "";
     tableBody.innerHTML = "";
+    if (mobileList) {
+        mobileList.innerHTML = "";
+    }
 
     const response = await apiFetch("/api/laundry");
     if (!response.ok) {
@@ -2348,7 +2382,28 @@ async function loadLaundry(resetToUpcoming = false) {
                 <button type="button" onclick="deleteLaundryBooking(${booking.id})">Löschen</button>
             </td>
         `;
+        applyResponsiveCellLabels(row, ["Datum", "Start", "Ende", "Waschmaschine", "Person", "Aktionen"]);
         tableBody.appendChild(row);
+
+        if (mobileList) {
+            const mobileCard = document.createElement("div");
+            mobileCard.className = "mobile-card";
+            mobileCard.innerHTML = `
+                <div class="mobile-card-row mobile-card-row--two">
+                    <span>${formatWeekdayMonthDay(booking.date)}</span>
+                    <span>${booking.start_time.slice(0, 5)} - ${booking.end_time.slice(0, 5)}</span>
+                </div>
+                <div class="mobile-card-row mobile-card-row--two">
+                    <span>Maschine ${booking.machine}</span>
+                    <span>${booking.person_name}</span>
+                </div>
+                <div class="mobile-card-actions">
+                    <button type="button" onclick="editLaundryBookingById(${booking.id})">Bearbeiten</button>
+                    <button type="button" onclick="deleteLaundryBooking(${booking.id})">Löschen</button>
+                </div>
+            `;
+            mobileList.appendChild(mobileCard);
+        }
     });
 }
 
@@ -2677,6 +2732,7 @@ function renderFoodWeekTable(entries) {
     const weekLabel = getElement("food-add-week-label");
     const status = getElement("food-add-status");
     const tbody = getOptionalElement("#food-add-table tbody");
+    const mobileList = getElement("food-add-mobile-list");
     if (!personSelect || !weekLabel || !status || !tbody) {
         return;
     }
@@ -2686,6 +2742,9 @@ function renderFoodWeekTable(entries) {
 
     weekLabel.innerText = formatWeekLabel(currentFoodAddWeekStart);
     tbody.innerHTML = "";
+    if (mobileList) {
+        mobileList.innerHTML = "";
+    }
     status.innerText = currentPeople.length ? "" : "Füge zuerst eine Person hinzu, bevor du Essen planst.";
 
     weekRows.forEach((rowData) => {
@@ -2714,8 +2773,58 @@ function renderFoodWeekTable(entries) {
                 <input class="food-cooking-group-custom" type="text" value="${useCustomGroup ? selectedGroupName : ""}" placeholder="Anderer Stock" style="display:${useCustomGroup ? "block" : "none"}; margin-top:0.5rem;">
             </td>
         `;
+        applyResponsiveCellLabels(row, ["Datum", "Isst", "Reste", "Kocht", "Gäste", "Zeit", "Stock"]);
         tbody.appendChild(row);
         attachFoodRowValidation(row);
+
+        if (mobileList) {
+            const mobileCard = document.createElement("div");
+            mobileCard.className = "mobile-card mobile-card--collapsible food-plan-card";
+            mobileCard.dataset.date = rowData.date;
+            mobileCard.dataset.mealType = rowData.mealType;
+            mobileCard.id = `food-mobile-row-${rowData.date}-${rowData.mealType}`;
+            mobileCard.innerHTML = `
+                <div class="mobile-card-header">
+                    <div class="mobile-card-row mobile-card-row--strong">${formatPlannerDateLabel(rowData.date, rowData.mealType)}</div>
+                    <button type="button" class="mobile-card-toggle" aria-expanded="false" onclick="toggleMobileCardDetails(this)">⌄</button>
+                </div>
+                <div class="mobile-card-grid mobile-card-grid--three food-plan-card-checks">
+                    <div class="mobile-card-check">
+                        <span>Isst</span>
+                        <input class="food-eats" type="checkbox" ${entry?.eats ? "checked" : ""}>
+                    </div>
+                    <div class="mobile-card-check">
+                        <span>Reste</span>
+                        <input class="food-leftovers" type="checkbox" ${entry?.take_leftovers_next_day ? "checked" : ""} ${rowData.mealType !== "lunch" ? "disabled" : ""}>
+                    </div>
+                    <div class="mobile-card-check">
+                        <span>Kocht</span>
+                        <input class="food-cooks" type="checkbox" ${entry?.cooks ? "checked" : ""}>
+                    </div>
+                </div>
+                <div class="mobile-card-detail">
+                    <div class="mobile-card-grid mobile-card-grid--two">
+                        <div>
+                            <span class="mobile-card-label">Gäste</span>
+                            ${buildGuestNameInputs(entry?.guest_names || [])}
+                        </div>
+                        <div>
+                            <span class="mobile-card-label">Zeit</span>
+                            <input class="food-time" type="time" value="${entry?.eating_time ?? getDefaultMealTime(rowData.mealType)}">
+                        </div>
+                    </div>
+                    <div>
+                        <span class="mobile-card-label">Stock</span>
+                        <select class="food-cooking-group-select">
+                            ${buildFoodGroupOptions(groupSuggestions, selectedGroupName)}
+                        </select>
+                        <input class="food-cooking-group-custom" type="text" value="${useCustomGroup ? selectedGroupName : ""}" placeholder="Anderer Stock" style="display:${useCustomGroup ? "block" : "none"}; margin-top:0.45rem;">
+                    </div>
+                </div>
+            `;
+            mobileList.appendChild(mobileCard);
+            attachFoodRowValidation(mobileCard);
+        }
     });
 }
 
@@ -2746,7 +2855,7 @@ function goToTodayFoodAdd() {
 async function saveFoodWeek() {
     const personSelect = getElement("food-person-select");
     const status = getElement("food-add-status");
-    const rows = getOptionalElements("#food-add-table tbody tr");
+    const rows = getFoodPlanEntries();
     if (!personSelect || !status) {
         return;
     }
@@ -3030,6 +3139,7 @@ function getFoodPeopleBreakdownLabel(entry) {
 
 function buildSummaryRows(entries) {
     const tbody = getOptionalElement("#food-summary-table tbody");
+    const mobileList = getElement("food-summary-mobile-list");
     const status = getElement("food-summary-status");
     const weekLabel = getElement("food-summary-week-label");
     const mineToggle = getElement("food-summary-mine-toggle");
@@ -3037,6 +3147,9 @@ function buildSummaryRows(entries) {
         return;
     }
     tbody.innerHTML = "";
+    if (mobileList) {
+        mobileList.innerHTML = "";
+    }
     weekLabel.innerText = formatWeekLabel(currentFoodSummaryWeekStart);
     status.innerText = "";
 
@@ -3072,20 +3185,43 @@ function buildSummaryRows(entries) {
         const row = document.createElement("tr");
         row.className = "expandable-row food-summary-row";
         const participantLines = formatParticipantLines(entry);
+        const cookText = entry.displayCooks.length ? entry.displayCooks.join(", ") : "kein Koch";
         row.innerHTML = `
-            <td>
-                <span class="description-preview">${formatWeekdayDateLabel(entry.date)}</span>
-                <span class="description-full">${participantLines.length ? participantLines.map((line) => formatParticipantLineHtml(line.label, line.names)).join("") : "Keine Teilnehmenden."}</span>
-            </td>
+            <td>${formatWeekdayDateLabel(entry.date)}</td>
             <td>${formatTimeValue(entry.eatingTime)}</td>
             <td>${entry.floorName}</td>
-            <td>${entry.displayCooks.length ? entry.displayCooks.join(", ") : ""}</td>
-            <td title="${escapeHtml(getFoodPeopleBreakdownLabel(entry))}">${formatFoodPeopleSummary(entry.ownPeopleTotal, entry.additionalPeopleTotal)}</td>
+            <td>${cookText}</td>
+            <td title="${escapeHtml(getFoodPeopleBreakdownLabel(entry))}">
+                <span class="food-summary-people-value">${formatFoodPeopleSummary(entry.ownPeopleTotal, entry.additionalPeopleTotal)}</span>
+                <span class="description-full">${participantLines.length ? participantLines.map((line) => formatParticipantLineHtml(line.label, line.names)).join("") : "Keine Teilnehmenden."}</span>
+            </td>
         `;
+        applyResponsiveCellLabels(row, ["Datum", "Zeit", "Stock", "Koch", "Personen"]);
         row.addEventListener("click", () => {
             row.classList.toggle("is-expanded");
         });
         tbody.appendChild(row);
+
+        if (mobileList) {
+            const mobileCard = document.createElement("div");
+            mobileCard.className = "mobile-card mobile-card--expandable food-summary-mobile-card";
+            mobileCard.innerHTML = `
+                <div class="mobile-card-row mobile-card-row--three">
+                    <span>${formatWeekdayDateLabel(entry.date)}</span>
+                    <span>${formatTimeValue(entry.eatingTime)}</span>
+                    <span>${entry.floorName}</span>
+                </div>
+                <div class="mobile-card-row mobile-card-row--two">
+                    <span>${cookText}</span>
+                    <span>${formatFoodPeopleSummary(entry.ownPeopleTotal, entry.additionalPeopleTotal)}</span>
+                </div>
+                <div class="mobile-card-detail">${participantLines.length ? participantLines.map((line) => formatParticipantLineHtml(line.label, line.names)).join("") : "Keine Teilnehmenden."}</div>
+            `;
+            mobileCard.addEventListener("click", () => {
+                mobileCard.classList.toggle("is-expanded");
+            });
+            mobileList.appendChild(mobileCard);
+        }
     });
 }
 
@@ -3368,6 +3504,7 @@ async function deleteGuestroomBooking(bookingId) {
 async function loadGuestroomBookings(resetToUpcoming = false) {
     const status = getElement("guestroom-list-status");
     const tableBody = getOptionalElement("#guestroom-table tbody");
+    const mobileList = getElement("guestroom-mobile-list");
     const prevButton = getElement("guestroom-prev-button");
     const nextButton = getElement("guestroom-next-button");
     const mineToggle = getElement("guestroom-mine-toggle");
@@ -3376,6 +3513,9 @@ async function loadGuestroomBookings(resetToUpcoming = false) {
     }
     status.innerText = "";
     tableBody.innerHTML = "";
+    if (mobileList) {
+        mobileList.innerHTML = "";
+    }
 
     const response = await apiFetch("/api/guestroom");
     if (!response.ok) {
@@ -3436,7 +3576,43 @@ async function loadGuestroomBookings(resetToUpcoming = false) {
                 <button type="button" onclick="deleteGuestroomBooking(${booking.id})">Löschen</button>
             </td>
         `;
+        applyResponsiveCellLabels(row, ["Gast", "Start", "Ende", "Dauer", "Zimmer", "Verantwortlich", "Aktionen"]);
         tableBody.appendChild(row);
+
+        if (mobileList) {
+            const mobileCard = document.createElement("div");
+            mobileCard.className = "mobile-card mobile-card--expandable";
+            const startDate = formatWeekdayMonthDay(new Date(booking.start_at));
+            const endDate = formatWeekdayMonthDay(new Date(booking.end_at));
+            mobileCard.innerHTML = `
+                <div class="mobile-card-row mobile-card-row--two">
+                    <span>${booking.guest_name}</span>
+                    <span>${formatGuestroomRoomLabel(booking.room_name, booking.responsible_name)}</span>
+                </div>
+                <div class="mobile-card-row mobile-card-row--two">
+                    <span>${startDate} - ${endDate}</span>
+                    <span>${durationNights} ${durationNights === 1 ? "Nacht" : "Nächte"}</span>
+                </div>
+                <div class="mobile-card-row">
+                    <span>Verantwortlich ${booking.responsible_name}</span>
+                </div>
+                <div class="mobile-card-detail">
+                    <div>Anreise: ${formatGuestroomListDateTime(booking.start_at)}</div>
+                    <div>Abreise: ${formatGuestroomListDateTime(booking.end_at)}</div>
+                </div>
+                <div class="mobile-card-actions">
+                    <button type="button" onclick="editGuestroomBookingById(${booking.id})">Bearbeiten</button>
+                    <button type="button" onclick="deleteGuestroomBooking(${booking.id})">Löschen</button>
+                </div>
+            `;
+            mobileCard.addEventListener("click", (event) => {
+                if (event.target.closest("button")) {
+                    return;
+                }
+                mobileCard.classList.toggle("is-expanded");
+            });
+            mobileList.appendChild(mobileCard);
+        }
     });
 }
 

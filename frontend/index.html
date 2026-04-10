@@ -21,7 +21,6 @@
             <a href="#" onclick="showSection('events')">Events</a>
         </div>
     </div>
-    <a href="#" onclick="showSection('help')">Hilfe</a>
     <span style="margin-left:auto"></span>
     <div class="nav-current-person" data-auth-only style="display:none">
         <label for="current-person-select">Person</label>
@@ -30,7 +29,6 @@
         </select>
         <p id="current-person-status"></p>
     </div>
-    <button id="logout-button" data-auth-only style="display:none" onclick="logoutHouse()">Abmelden</button>
 </nav>
 
 <section id="home" class="section-card">
@@ -58,7 +56,10 @@
     <div id="house-dashboard" style="display:none">
         <div class="panel">
             <h2>Aktuelles Haus</h2>
-            <p id="active-house-label"></p>
+            <div class="active-house-actions">
+                <p id="active-house-label"></p>
+                <button id="logout-button" data-auth-only style="display:none" onclick="logoutHouse()">Abmelden</button>
+            </div>
         </div>
 
         <div class="panel-grid">
@@ -92,11 +93,13 @@
             <button id="overview-week-button" type="button" onclick="setOverviewView('week')">Woche</button>
             <button id="overview-month-button" type="button" onclick="setOverviewView('month')">Monat</button>
         </div>
-        <div class="week-nav">
-            <button type="button" onclick="goToTodayOverview()">Heute</button>
-            <button type="button" onclick="changeOverviewRange(-1)">←</button>
+        <div class="week-nav week-nav--stacked">
             <strong id="overview-range-label"></strong>
-            <button type="button" onclick="changeOverviewRange(1)">→</button>
+            <div class="week-nav-controls">
+                <button type="button" onclick="goToTodayOverview()">Heute</button>
+                <button type="button" onclick="changeOverviewRange(-1)">←</button>
+                <button type="button" onclick="changeOverviewRange(1)">→</button>
+            </div>
         </div>
     </div>
 
@@ -167,7 +170,7 @@
             <label class="switch-row">
                 <span>Meine Einträge</span>
                 <span class="switch">
-                    <input id="laundry-mine-toggle" type="checkbox" onchange="loadLaundry()">
+                    <input id="laundry-mine-toggle" type="checkbox" onchange="loadLaundry(true)">
                     <span class="switch-slider"></span>
                 </span>
             </label>
@@ -185,6 +188,7 @@
             </thead>
             <tbody></tbody>
         </table>
+        <div id="laundry-mobile-list" class="mobile-card-list"></div>
         <div class="list-pagination">
             <button type="button" id="laundry-prev-button" onclick="changeLaundryPage(-1)">Vorherige 10</button>
             <button type="button" id="laundry-next-button" onclick="changeLaundryPage(1)">Nächste 10</button>
@@ -204,10 +208,12 @@
         <label for="food-person-select">Person</label>
         <select id="food-person-select"></select>
         <div class="week-nav">
-            <button onclick="changeFoodAddWeek(-1)">Vorherige Woche</button>
+            <div class="week-nav-controls">
+                <button type="button" onclick="goToTodayFoodAdd()">Heute</button>
+                <button type="button" onclick="changeFoodAddWeek(-1)">←</button>
+                <button type="button" onclick="changeFoodAddWeek(1)">→</button>
+            </div>
             <strong id="food-add-week-label"></strong>
-            <button onclick="changeFoodAddWeek(1)">Nächste Woche</button>
-            <button onclick="goToTodayFoodAdd()">Heute</button>
         </div>
         <table id="food-add-table">
             <thead>
@@ -223,16 +229,19 @@
             </thead>
             <tbody></tbody>
         </table>
+        <div id="food-add-mobile-list" class="mobile-card-list"></div>
         <button onclick="saveFoodWeek()">Woche speichern</button>
         <p id="food-add-status"></p>
     </div>
 
     <div id="food-summary" style="display:none">
         <div class="week-nav">
-            <button onclick="changeFoodSummaryWeek(-1)">Vorherige Woche</button>
+            <div class="week-nav-controls">
+                <button type="button" onclick="goToTodayFoodSummary()">Heute</button>
+                <button type="button" onclick="changeFoodSummaryWeek(-1)">←</button>
+                <button type="button" onclick="changeFoodSummaryWeek(1)">→</button>
+            </div>
             <strong id="food-summary-week-label"></strong>
-            <button onclick="changeFoodSummaryWeek(1)">Nächste Woche</button>
-            <button onclick="goToTodayFoodSummary()">Heute</button>
         </div>
         <div class="overview-filters">
             <label class="switch-row">
@@ -243,7 +252,6 @@
                 </span>
             </label>
         </div>
-        <p>Anzeige Personen: zuerst Personen auf diesem Stock, danach zusätzliche Personen auf anderem Stock und Reste für den Folgetag, danach das Total.</p>
         <table id="food-summary-table">
             <thead>
                 <tr>
@@ -256,6 +264,8 @@
             </thead>
             <tbody></tbody>
         </table>
+        <div id="food-summary-mobile-list" class="mobile-card-list"></div>
+        <p class="food-summary-note">Anzeige Personen: zuerst Personen auf diesem Stock, danach zusätzliche Personen auf anderem Stock und Reste für den Folgetag, danach das Total.</p>
         <p id="food-summary-status"></p>
     </div>
 </section>
@@ -286,7 +296,7 @@
             <label class="switch-row">
                 <span>Meine Einträge</span>
                 <span class="switch">
-                    <input id="guestroom-mine-toggle" type="checkbox" onchange="loadGuestroomBookings()">
+                    <input id="guestroom-mine-toggle" type="checkbox" onchange="loadGuestroomBookings(true)">
                     <span class="switch-slider"></span>
                 </span>
             </label>
@@ -305,6 +315,7 @@
             </thead>
             <tbody></tbody>
         </table>
+        <div id="guestroom-mobile-list" class="mobile-card-list"></div>
         <div class="list-pagination">
             <button type="button" id="guestroom-prev-button" onclick="changeGuestroomPage(-1)">Vorherige 10</button>
             <button type="button" id="guestroom-next-button" onclick="changeGuestroomPage(1)">Nächste 10</button>
@@ -449,7 +460,7 @@
     <h2>Events</h2>
 </section>
 
-<script src="main.js?v=20260410-20"></script>
+<script src="main.js?v=20260410-40"></script>
 </div>
 </body>
 </html>

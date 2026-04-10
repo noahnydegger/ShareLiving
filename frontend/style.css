@@ -125,8 +125,19 @@ body {
     min-width: 180px;
 }
 
-#logout-button {
-    margin-left: 0.25rem;
+.active-house-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+}
+
+.active-house-actions p {
+    margin: 0;
+}
+
+.active-house-actions #logout-button {
+    flex: 0 0 auto;
 }
 
 .section-card {
@@ -305,6 +316,19 @@ ul {
     font-weight: 700;
 }
 
+.week-nav--stacked {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.45rem;
+}
+
+.week-nav-controls {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+}
+
 .list-pagination {
     display: flex;
     flex-wrap: wrap;
@@ -448,6 +472,8 @@ ul {
     display: inline-flex;
     align-items: center;
     gap: 0.75rem;
+    width: fit-content;
+    max-width: 100%;
     margin: 0;
     padding: 0.65rem 0.85rem;
     border: 1px solid var(--border);
@@ -622,6 +648,10 @@ ul {
     border-left-color: #f97316;
 }
 
+.mobile-card-list {
+    display: none;
+}
+
 .calendar-empty {
     margin: 0;
     color: var(--text-muted);
@@ -676,18 +706,49 @@ ul {
     }
 
     .top-nav {
-        align-items: stretch;
+        align-items: center;
         padding: 0.85rem;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+    }
+
+    .top-nav > a,
+    .top-nav > .nav-dropdown {
+        flex: 0 0 auto;
     }
 
     .top-nav a,
-    #logout-button {
-        width: 100%;
+    .nav-dropdown-toggle {
+        width: auto;
         text-align: center;
+        white-space: nowrap;
+        min-height: 2.5rem;
+        padding: 0.6rem 0.8rem;
     }
 
-    #logout-button {
+    .top-nav > span[style] {
+        display: none;
+    }
+
+    .nav-current-person {
+        order: 20;
+        flex: 1 1 100%;
+        min-width: 100%;
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr);
+        align-items: center;
+        gap: 0.5rem;
         margin-left: 0;
+        padding-top: 0.25rem;
+    }
+
+    .nav-current-person p {
+        grid-column: 1 / -1;
+    }
+
+    .nav-current-person select {
+        min-width: 0;
+        width: 100%;
     }
 
     .week-nav,
@@ -700,18 +761,365 @@ ul {
         align-items: stretch;
     }
 
+    .laundry-actions,
+    .food-actions,
+    .guestroom-actions,
+    .chores-actions,
+    .list-pagination {
+        flex-direction: row;
+        align-items: center;
+        flex-wrap: wrap;
+    }
+
     button {
-        width: 100%;
+        width: auto;
+        min-width: 0;
+        align-self: flex-start;
     }
 
     .panel-grid {
         grid-template-columns: 1fr;
+        gap: 0.75rem;
     }
 
-    table {
+    .panel {
+        padding: 0.85rem;
+    }
+
+    #auth-panels .panel button,
+    #house-dashboard .panel button {
+        width: auto;
+    }
+
+    .active-house-actions {
+        flex-wrap: wrap;
+        align-items: flex-start;
+    }
+
+    #people-list,
+    #guest-rooms-list,
+    #chores-list {
+        padding-left: 0;
+        list-style: none;
+    }
+
+    #people-list li,
+    #guest-rooms-list li,
+    #chores-list li {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.5rem;
+        padding: 0.7rem 0.8rem;
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        background: var(--surface-soft);
+    }
+
+    .inline-actions {
+        margin-left: 0;
+        width: 100%;
+        justify-content: flex-end;
+    }
+
+    .inline-actions button {
+        width: auto;
+        flex: 1 1 auto;
+    }
+
+    .week-nav button,
+    .laundry-actions button,
+    .food-actions button,
+    .guestroom-actions button,
+    .chores-actions button,
+    .list-pagination button,
+    .filter-toolbar button,
+    .panel button {
+        width: auto;
+        min-height: 2.25rem;
+        padding: 0.5rem 0.8rem;
+        border-radius: 999px;
+        font-weight: 600;
+        box-shadow: 0 4px 10px rgba(37, 99, 235, 0.14);
+    }
+
+    .week-nav--stacked {
+        align-items: center;
+    }
+
+    .week-nav--stacked strong {
+        align-self: center;
+        text-align: center;
+    }
+
+    .week-nav-controls {
+        justify-content: flex-start;
+        width: auto;
+    }
+
+    .overview-toolbar {
+        align-items: center;
+    }
+
+    .overview-filters {
+        align-items: flex-start;
+    }
+
+    .food-summary-note {
+        margin-top: 0.85rem;
+    }
+
+    .switch-row {
+        padding: 0.55rem 0.75rem;
+    }
+
+    .laundry-actions button,
+    .food-actions button,
+    .guestroom-actions button,
+    .chores-actions button,
+    .list-pagination button {
+        flex: 0 0 auto;
+    }
+
+    #food-add-table,
+    #food-summary-table,
+    #laundry-table,
+    #guestroom-table {
+        display: none;
+    }
+
+    .mobile-card-list {
+        display: grid;
+        gap: 0.75rem;
+    }
+
+    .mobile-card {
+        padding: 0.8rem 1rem;
+        border: 1px solid var(--border);
+        border-radius: 20px;
+        background: linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(248,250,252,0.95) 100%);
+        box-shadow: 0 12px 24px rgba(15, 23, 42, 0.08);
+    }
+
+    .mobile-card-row {
+        display: grid;
+        gap: 0.6rem;
+        align-items: center;
+        margin-bottom: 0.2rem;
+        font-weight: 600;
+    }
+
+    .mobile-card-row--strong {
+        font-weight: 700;
+    }
+
+    .mobile-card-row--two {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .mobile-card-row--three {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .mobile-card-row span:nth-child(2) {
+        text-align: center;
+    }
+
+    .mobile-card-row--two span:nth-child(2),
+    .mobile-card-row--three span:nth-child(3) {
+        text-align: right;
+    }
+
+    .mobile-card-label {
         display: block;
-        overflow-x: auto;
-        -webkit-overflow-scrolling: touch;
+        margin-bottom: 0.25rem;
+        color: var(--text-muted);
+        font-size: 0.76rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.02em;
+    }
+
+    .mobile-card-grid {
+        display: grid;
+        gap: 0.6rem;
+        margin-top: 0.45rem;
+    }
+
+    .mobile-card-grid--two {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .mobile-card-grid--three {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .food-summary-mobile-card {
+        padding: 0.9rem 1.15rem;
+    }
+
+    .food-summary-mobile-card .mobile-card-row--three {
+        grid-template-columns: auto auto auto;
+        justify-content: space-between;
+        gap: 0.9rem;
+    }
+
+    .food-summary-mobile-card .mobile-card-row--two {
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 0.9rem;
+        margin-top: 0.15rem;
+    }
+
+    .food-summary-mobile-card .mobile-card-row span {
+        text-align: left;
+    }
+
+    .food-summary-mobile-card .mobile-card-row--three span:last-child,
+    .food-summary-mobile-card .mobile-card-row--two span:last-child {
+        text-align: right;
+    }
+
+    #guestroom-mobile-list .mobile-card-row--two:first-child span:first-child {
+        font-weight: 700;
+    }
+
+    #guestroom-mobile-list .mobile-card-row--two:first-child span:last-child {
+        font-weight: 500;
+    }
+
+    .mobile-card-check {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.5rem;
+        padding: 0.45rem 0.65rem;
+        border: 1px solid rgba(148, 163, 184, 0.24);
+        border-radius: 14px;
+        background: rgba(255, 255, 255, 0.92);
+        font-weight: 600;
+    }
+
+    .food-plan-card .food-eats,
+    .food-plan-card .food-leftovers,
+    .food-plan-card .food-cooks {
+        width: 1.1rem;
+        height: 1.1rem;
+        min-height: 1.1rem;
+        padding: 0;
+        margin: 0;
+        border-radius: 999px;
+        accent-color: var(--accent);
+    }
+
+    .food-plan-card .food-guest-names {
+        display: grid;
+        gap: 0.35rem;
+    }
+
+    .food-plan-card {
+        padding: 0.85rem 0.9rem;
+        border-radius: 22px;
+        background: linear-gradient(180deg, #ffffff 0%, #f7fbff 100%);
+        box-shadow: 0 14px 28px rgba(15, 23, 42, 0.08);
+    }
+
+    .food-plan-card .mobile-card-row--strong {
+        margin-bottom: 0.55rem;
+        font-size: 0.98rem;
+        letter-spacing: -0.01em;
+    }
+
+    .food-plan-card .mobile-card-grid--three {
+        gap: 0.45rem;
+        margin-top: 0;
+    }
+
+    .food-plan-card-checks {
+        margin-top: 0.15rem;
+    }
+
+    .food-plan-card .mobile-card-grid--two {
+        gap: 0.55rem;
+        margin-top: 0.55rem;
+    }
+
+    .food-plan-card .food-guest-name,
+    .food-plan-card .food-time,
+    .food-plan-card .food-cooking-group-select,
+    .food-plan-card .food-cooking-group-custom {
+        min-height: 2.3rem;
+        padding: 0.5rem 0.7rem;
+        border-radius: 14px;
+        background: rgba(255, 255, 255, 0.96);
+    }
+
+    .mobile-card-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.55rem;
+        margin-top: 0.55rem;
+        padding-top: 0.55rem;
+        border-top: 1px solid var(--border);
+    }
+
+    .mobile-card-actions button {
+        flex: 1 1 0;
+        margin: 0;
+        min-height: 2rem;
+        padding: 0.4rem 0.7rem;
+        font-size: 0.9rem;
+    }
+
+    .mobile-card-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.6rem;
+    }
+
+    .mobile-card-toggle {
+        min-height: 2rem;
+        padding: 0.2rem 0.45rem;
+        border-radius: 999px;
+        background: rgba(37, 99, 235, 0.08);
+        color: var(--accent);
+        box-shadow: none;
+        line-height: 1;
+    }
+
+    .mobile-card-toggle:hover,
+    .mobile-card-toggle:focus-visible {
+        background: rgba(37, 99, 235, 0.14);
+        color: var(--accent);
+    }
+
+    .mobile-card-detail {
+        display: none;
+        margin-top: 0.55rem;
+        padding-top: 0.55rem;
+        border-top: 1px solid var(--border);
+        color: var(--text-muted);
+    }
+
+    .mobile-card--expandable.is-expanded .mobile-card-detail {
+        display: block;
+    }
+
+    .mobile-card--collapsible .mobile-card-detail {
+        display: none;
+    }
+
+    .mobile-card--collapsible.is-expanded .mobile-card-detail {
+        display: block;
+    }
+
+    .mobile-card--collapsible.is-expanded .mobile-card-toggle {
+        transform: rotate(180deg);
+    }
+
+    .mobile-card-detail strong {
+        color: var(--text);
     }
 
     .overview-calendar--week,
