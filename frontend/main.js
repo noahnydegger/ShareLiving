@@ -1771,13 +1771,13 @@ function getEventsForDate(dateValue, events) {
     });
 }
 
-function getDurationDays(startValue, endValue) {
+function getDurationNights(startValue, endValue) {
     const startAt = new Date(startValue);
     const endAt = new Date(endValue);
     const startDay = new Date(startAt.getFullYear(), startAt.getMonth(), startAt.getDate());
     const endDay = new Date(endAt.getFullYear(), endAt.getMonth(), endAt.getDate());
-    const diffDays = Math.round((endDay.getTime() - startDay.getTime()) / 86400000) + 1;
-    return Math.max(diffDays, 1);
+    const diffDays = Math.round((endDay.getTime() - startDay.getTime()) / 86400000);
+    return Math.max(diffDays, 0);
 }
 
 function buildGuestroomEvents(guestroomEntries, startDate, endDate) {
@@ -3423,12 +3423,12 @@ async function loadGuestroomBookings(resetToUpcoming = false) {
 
     currentGuestroomBookings.forEach((booking) => {
         const row = document.createElement("tr");
-        const durationDays = getDurationDays(booking.start_at, booking.end_at);
+        const durationNights = getDurationNights(booking.start_at, booking.end_at);
         row.innerHTML = `
             <td>${booking.guest_name}</td>
             <td>${formatGuestroomListDateTime(booking.start_at)}</td>
             <td>${formatGuestroomListDateTime(booking.end_at)}</td>
-            <td>${durationDays} ${durationDays === 1 ? "Tag" : "Tage"}</td>
+            <td>${durationNights} ${durationNights === 1 ? "Nacht" : "Nächte"}</td>
             <td>${formatGuestroomRoomLabel(booking.room_name, booking.responsible_name)}</td>
             <td>${booking.responsible_name}</td>
             <td>
