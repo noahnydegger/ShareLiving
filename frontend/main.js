@@ -1585,12 +1585,7 @@ function getMonday(date) {
 }
 
 function getFoodWeekStart(date) {
-    const friday = cloneDate(date);
-    friday.setHours(0, 0, 0, 0);
-    const day = friday.getDay();
-    const daysSinceFriday = (day + 2) % 7;
-    friday.setDate(friday.getDate() - daysSinceFriday);
-    return friday;
+    return getMonday(date);
 }
 
 function addDays(date, days) {
