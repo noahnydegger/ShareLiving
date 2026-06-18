@@ -3,6 +3,16 @@ const HOUSE_TOKEN_KEY = "shareLiving.houseToken";
 const HOUSE_NAME_KEY = "shareLiving.houseName";
 const HOUSE_ID_KEY = "shareLiving.houseId";
 const ACTIVE_SECTION_KEY = "shareLiving.activeSection";
+const BIRTHDAY_EASTER_EGG_MONTH_INDEX = 5;
+const BIRTHDAY_EASTER_EGG_DAYS = new Set([18, 19]);
+const BIRTHDAY_EASTER_EGG_FOLDER = "birthday-pascu";
+const BIRTHDAY_EASTER_EGG_MESSAGES = [
+    "happy birthday Päscu",
+    "alles Guete Päscu",
+    "viel Glück Päscu",
+];
+const BIRTHDAY_EASTER_EGG_EXTENSIONS = ["webp", "jpg", "jpeg", "png", "gif"];
+const BIRTHDAY_EASTER_EGG_MAX_IMAGES = 24;
 
 let currentPeople = [];
 let currentGuestRooms = [];
@@ -35,9 +45,101 @@ let expandedFeedbackIds = new Set();
 let livingGroupEditMode = false;
 let personEditMode = false;
 let guestRoomEditMode = false;
+let birthdayMessageIndex = 0;
+let birthdayImageIndex = 0;
+let birthdayImagePathsPromise = null;
 
 function getElement(id) {
     return document.getElementById(id);
+}
+
+function isBirthdayEasterEggDay() {
+    const now = new Date();
+    return now.getMonth() === BIRTHDAY_EASTER_EGG_MONTH_INDEX
+        && BIRTHDAY_EASTER_EGG_DAYS.has(now.getDate());
+}
+
+async function birthdayAssetExists(path) {
+    try {
+        const response = await fetch(path, {
+            method: "HEAD",
+            cache: "no-store",
+        });
+        return response.ok;
+    } catch (_error) {
+        return false;
+    }
+}
+
+async function loadBirthdayImagePaths() {
+    if (!birthdayImagePathsPromise) {
+        birthdayImagePathsPromise = (async () => {
+            const paths = [];
+            for (let index = 1; index <= BIRTHDAY_EASTER_EGG_MAX_IMAGES; index += 1) {
+                for (const extension of BIRTHDAY_EASTER_EGG_EXTENSIONS) {
+                    const path = `${BIRTHDAY_EASTER_EGG_FOLDER}/${index}.${extension}`;
+                    if (await birthdayAssetExists(path)) {
+                        paths.push(path);
+                        break;
+                    }
+                }
+            }
+            return paths;
+        })();
+    }
+    return birthdayImagePathsPromise;
+}
+
+function dismissBirthdayEasterEgg() {
+    const overlay = getElement("birthday-easter-egg");
+    if (!overlay) {
+        return;
+    }
+    overlay.classList.remove("is-visible");
+    document.body.classList.remove("birthday-easter-egg-open");
+}
+
+async function showBirthdayEasterEgg() {
+    if (!isBirthdayEasterEggDay()) {
+        return;
+    }
+
+    const overlay = getElement("birthday-easter-egg");
+    const messageElement = getElement("birthday-easter-egg-message");
+    const imageElement = getElement("birthday-easter-egg-image");
+    const hintElement = getElement("birthday-easter-egg-hint");
+    if (!overlay || !messageElement || !imageElement || !hintElement) {
+        return;
+    }
+
+    const message = BIRTHDAY_EASTER_EGG_MESSAGES[birthdayMessageIndex % BIRTHDAY_EASTER_EGG_MESSAGES.length];
+    birthdayMessageIndex += 1;
+
+    const imagePaths = await loadBirthdayImagePaths();
+    const imagePath = imagePaths.length
+        ? imagePaths[birthdayImageIndex % imagePaths.length]
+        : "";
+    if (imagePath) {
+        birthdayImageIndex += 1;
+    }
+
+    messageElement.textContent = message;
+    hintElement.textContent = imagePath
+        ? "Zum Schliessen auf das Bild oder den Text tippen."
+        : "Zum Schliessen auf die Nachricht tippen.";
+
+    if (imagePath) {
+        imageElement.src = imagePath;
+        imageElement.alt = message;
+        imageElement.style.display = "block";
+    } else {
+        imageElement.removeAttribute("src");
+        imageElement.alt = "";
+        imageElement.style.display = "none";
+    }
+
+    overlay.classList.add("is-visible");
+    document.body.classList.add("birthday-easter-egg-open");
 }
 
 function getOptionalElement(selector) {
@@ -127,6 +229,8 @@ function showSection(id) {
     if (id === "feedback" && getHouseToken()) {
         showFeedbackAdd();
     }
+
+    showBirthdayEasterEgg();
 }
 
 function getHouseToken() {
@@ -198,6 +302,11 @@ async function apiFetch(path, options = {}) {
 
     if (response.status === 401) {
         logoutHouse();
+    }
+
+    const method = String(options.method || "GET").toUpperCase();
+    if (response.ok && method !== "GET" && method !== "HEAD") {
+        showBirthdayEasterEgg();
     }
 
     return response;

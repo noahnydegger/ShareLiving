@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <title>ShareLiving</title>
-    <link rel="stylesheet" href="style.css?v=20260410-42">
+    <link rel="stylesheet" href="style.css?v=20260618-43">
 </head>
 <body>
 <div class="page-shell">
@@ -31,6 +31,15 @@
         <p id="current-person-status"></p>
     </div>
 </nav>
+
+<div id="birthday-easter-egg" class="birthday-easter-egg" onclick="dismissBirthdayEasterEgg()">
+    <div class="birthday-easter-egg-card">
+        <button type="button" class="birthday-easter-egg-close" onclick="dismissBirthdayEasterEgg()">Schliessen</button>
+        <p id="birthday-easter-egg-message" class="birthday-easter-egg-message"></p>
+        <img id="birthday-easter-egg-image" class="birthday-easter-egg-image" alt="" loading="lazy">
+        <p id="birthday-easter-egg-hint" class="birthday-easter-egg-hint"></p>
+    </div>
+</div>
 
 <section id="home" class="section-card">
     <h1>ShareLiving</h1>
@@ -461,7 +470,7 @@
     <h2>Events</h2>
 </section>
 
-<script src="main.js?v=20260618-41"></script>
+<script src="main.js?v=20260618-43"></script>
 </div>
 </body>
 </html>
