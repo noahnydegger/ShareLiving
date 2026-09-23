@@ -255,6 +255,16 @@ flyctl deploy -c fly.staging.toml
 - Use a different `HOUSE_TOKEN_SECRET` for staging and production.
 - If you want a custom staging domain later, update `ALLOWED_ORIGINS` to that domain too.
 
+### Secure Supabase public tables
+
+ShareLiving accesses PostgreSQL only through FastAPI. The browser does not use the Supabase Data API directly. Apply `data/migrations/001_secure_supabase_public_tables.sql` in the Supabase SQL Editor to enable Row Level Security and remove direct access for the `anon` and `authenticated` Data API roles.
+
+Apply the migration to staging first. Before running it, confirm that the staging `SYNC_DATABASE_URL` uses the `postgres` database role or another role with `BYPASSRLS`. After applying it, verify login and every create, read, update, and delete flow on staging before applying the same migration to production.
+
+The migration returns two verification result sets. Every ShareLiving table should show `rowsecurity = true`, and the grants query should return no rows for `anon` or `authenticated`.
+
+If staging FastAPI loses database access, immediately run `data/migrations/001_secure_supabase_public_tables.rollback.sql` in the staging SQL Editor. Do not use the rollback in production unless application access is broken and the cause has been confirmed.
+
 ## Current Limitations
 
 - routes still use the fixed `/homes/default` path even though the active house is selected by token
