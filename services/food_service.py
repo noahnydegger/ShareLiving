@@ -336,7 +336,10 @@ def get_food_summary(
                 """
                 SELECT fe.date,
                        fe.meal_type,
-                       COALESCE(SUM(CASE WHEN fe.eats THEN 1 + fe.guests ELSE 0 END), 0) AS total_eaters,
+                       COALESCE(
+                           SUM((CASE WHEN fe.eats THEN 1 ELSE 0 END) + fe.guests),
+                           0
+                       ) AS total_eaters,
                        ARRAY_REMOVE(
                            ARRAY_AGG(
                                CASE WHEN fe.cooks THEN p.name ELSE NULL END

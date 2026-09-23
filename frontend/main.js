@@ -350,14 +350,9 @@ function fillPersonSelect(selectId, includeEmpty = false, emptyLabel = "Person a
     }
 }
 
-function syncPersonSelectors() {
+function syncCurrentPersonSelect() {
     const selectedPersonId = getSelectedPersonId();
     fillPersonSelect("current-person-select", true, "Person auswählen", selectedPersonId);
-    fillPersonSelect("laundry-person-select", false, "Person auswählen", selectedPersonId);
-    fillPersonSelect("food-person-select", false, "Person auswählen", selectedPersonId);
-    fillPersonSelect("guestroom-person-select", false, "Person auswählen", selectedPersonId);
-    fillPersonSelect("defect-person-select", false, "Person auswählen", selectedPersonId);
-    fillPersonSelect("feedback-person-select", false, "Person auswählen", selectedPersonId);
     renderGuestroomRoomOptions();
 }
 
@@ -388,13 +383,12 @@ function renderGuestRooms() {
 
 function renderGuestroomRoomOptions() {
     const select = getElement("guestroom-room-select");
-    const personSelect = getElement("guestroom-person-select");
     if (!select) {
         return;
     }
 
     const selectedValue = select.value;
-    const selectedPerson = currentPeople.find((person) => String(person.id) === String(personSelect?.value || ""));
+    const selectedPerson = currentPeople.find((person) => String(person.id) === String(getSelectedPersonId()));
     const ownRoomLabel = selectedPerson
         ? `Eigenes Zimmer (${selectedPerson.name})`
         : "Eigenes Zimmer";
@@ -462,12 +456,12 @@ async function loadHouseData() {
     renderChoresOverview();
     renderDefectsList();
     renderFeedbackList();
-    syncPersonSelectors();
+    syncCurrentPersonSelect();
 
     const selectedPersonId = getSelectedPersonId();
     if (selectedPersonId && !currentPeople.some((person) => String(person.id) === String(selectedPersonId))) {
         setSelectedPersonId("");
-        syncPersonSelectors();
+        syncCurrentPersonSelect();
     }
 
     return true;
@@ -587,7 +581,7 @@ function logoutHouse() {
     updatePersonFormUi();
     updateGuestRoomFormUi();
     updateChoreFormUi();
-    syncPersonSelectors();
+    syncCurrentPersonSelect();
     showSection("home");
 }
 
@@ -598,6 +592,15 @@ function handleCurrentPersonChange() {
     }
     setSelectedPersonId(select.value);
     window.location.reload();
+}
+
+function selectCurrentPerson(personId) {
+    setSelectedPersonId(personId);
+    const select = getElement("current-person-select");
+    if (select) {
+        select.value = String(personId || "");
+    }
+    renderGuestroomRoomOptions();
 }
 
 async function createPerson() {
@@ -1235,7 +1238,7 @@ function renderDefectPhotoLink() {
 function showDefectAdd() {
     setElementDisplay("defects-add", "block");
     setElementDisplay("defects-list", "none");
-    syncPersonSelectors();
+    syncCurrentPersonSelect();
     const reportedDateInput = getElement("defect-reported-date");
     if (reportedDateInput && !reportedDateInput.value) {
         reportedDateInput.value = formatDate(new Date());
@@ -1357,7 +1360,6 @@ async function loadDefects() {
 }
 
 async function saveDefect() {
-    const personSelect = getElement("defect-person-select");
     const roomInput = getElement("defect-room");
     const roomLocationInput = getElement("defect-room-location");
     const descriptionInput = getElement("defect-description");
@@ -1367,8 +1369,7 @@ async function saveDefect() {
     const reportedDateInput = getElement("defect-reported-date");
     const status = getElement("defect-add-status");
     if (
-        !personSelect
-        || !roomInput
+        !roomInput
         || !roomLocationInput
         || !descriptionInput
         || !damageSourceSelect
@@ -1381,7 +1382,7 @@ async function saveDefect() {
     }
 
     const payload = {
-        person_id: Number(personSelect.value),
+        person_id: Number(getSelectedPersonId()),
         room: roomInput.value.trim(),
         room_location: roomLocationInput.value.trim(),
         description: descriptionInput.value.trim(),
@@ -1392,7 +1393,7 @@ async function saveDefect() {
     };
 
     if (!payload.person_id || !payload.room || !payload.room_location || !payload.description) {
-        status.innerText = "Bitte Person, Raum, Ort im Raum und Beschrieb ausfüllen.";
+        status.innerText = "Bitte oben im Menü eine Person auswählen und Raum, Ort sowie Beschrieb ausfüllen.";
         return;
     }
 
@@ -1484,7 +1485,7 @@ function getPriorityRank(priority) {
 function showFeedbackAdd() {
     setElementDisplay("feedback-add", "block");
     setElementDisplay("feedback-list", "none");
-    syncPersonSelectors();
+    syncCurrentPersonSelect();
 }
 
 function showFeedbackList() {
@@ -1599,18 +1600,17 @@ async function loadFeedback() {
 }
 
 async function saveFeedback() {
-    const personSelect = getElement("feedback-person-select");
     const areaInput = getElement("feedback-area");
     const typeSelect = getElement("feedback-type");
     const descriptionInput = getElement("feedback-description");
     const prioritySelect = getElement("feedback-priority");
     const status = getElement("feedback-add-status");
-    if (!personSelect || !areaInput || !typeSelect || !descriptionInput || !prioritySelect || !status) {
+    if (!areaInput || !typeSelect || !descriptionInput || !prioritySelect || !status) {
         return;
     }
 
     const payload = {
-        person_id: Number(personSelect.value),
+        person_id: Number(getSelectedPersonId()),
         area: areaInput.value.trim(),
         feedback_type: typeSelect.value,
         description: descriptionInput.value.trim(),
@@ -1618,7 +1618,7 @@ async function saveFeedback() {
     };
 
     if (!payload.person_id || !payload.area || !payload.description) {
-        status.innerText = "Bitte Erfasser, Bereich und Beschrieb ausfüllen.";
+        status.innerText = "Bitte oben im Menü eine Person auswählen und Bereich sowie Beschrieb ausfüllen.";
         return;
     }
 
@@ -2199,7 +2199,7 @@ function goToTodayOverview() {
 function showLaundryAdd() {
     setElementDisplay("laundry-add", "block");
     setElementDisplay("laundry-list", "none");
-    syncPersonSelectors();
+    syncCurrentPersonSelect();
     updateLaundryFormUi();
     loadLaundryOverview();
 }
@@ -2242,13 +2242,12 @@ function updateLaundryFormUi() {
 
 function resetLaundryForm() {
     editingLaundryBookingId = null;
-    const personSelect = getElement("laundry-person-select");
     const machineSelect = getElement("laundry-machine-select");
     const dateInput = getElement("laundry-date");
     const startInput = getElement("laundry-start");
     const endInput = getElement("laundry-end");
     const status = getElement("laundry-add-status");
-    syncPersonSelectors();
+    syncCurrentPersonSelect();
     if (dateInput) {
         dateInput.value = "";
     }
@@ -2264,24 +2263,18 @@ function resetLaundryForm() {
     if (status) {
         status.innerText = "";
     }
-    if (personSelect && !personSelect.value && currentPeople.length) {
-        personSelect.value = String(currentPeople[0].id);
-    }
     updateLaundryFormUi();
 }
 
 function editLaundryBooking(booking) {
     editingLaundryBookingId = booking.id;
+    selectCurrentPerson(booking.person_id);
     showLaundryAdd();
-    const personSelect = getElement("laundry-person-select");
     const machineSelect = getElement("laundry-machine-select");
     const dateInput = getElement("laundry-date");
     const startInput = getElement("laundry-start");
     const endInput = getElement("laundry-end");
     const status = getElement("laundry-add-status");
-    if (personSelect) {
-        personSelect.value = String(booking.person_id);
-    }
     if (machineSelect) {
         machineSelect.value = booking.machine;
     }
@@ -2308,16 +2301,15 @@ function editLaundryBookingById(bookingId) {
 }
 
 async function saveLaundryBooking() {
-    const personSelect = getElement("laundry-person-select");
     const machineSelect = getElement("laundry-machine-select");
     const dateInput = getElement("laundry-date");
     const startInput = getElement("laundry-start");
     const endInput = getElement("laundry-end");
     const status = getElement("laundry-add-status");
-    if (!personSelect || !machineSelect || !dateInput || !startInput || !endInput || !status) {
+    if (!machineSelect || !dateInput || !startInput || !endInput || !status) {
         return;
     }
-    const personId = personSelect.value;
+    const personId = getSelectedPersonId();
     const machine = machineSelect.value;
     const date = dateInput.value;
     const start = roundTimeValueToStep(startInput.value, 5);
@@ -2328,7 +2320,7 @@ async function saveLaundryBooking() {
     endInput.value = end;
 
     if (!personId || !machine || !date || !start || !end) {
-        status.innerText = "Bitte Person, Waschmaschine, Datum, Start- und Endzeit auswählen.";
+        status.innerText = "Bitte oben im Menü eine Person sowie Waschmaschine, Datum, Start- und Endzeit auswählen.";
         return;
     }
 
@@ -2757,8 +2749,7 @@ function findExistingCookConflict(personId, dateValue, mealType, cookingGroupNam
 
 function validateFoodPlannerRow(row, options = {}) {
     const { showMessage = true, changedField = "" } = options;
-    const personSelect = getElement("food-person-select");
-    const personId = personSelect?.value || getSelectedPersonId();
+    const personId = getSelectedPersonId();
     const { cooksInput, cookingGroupSelect, cookingGroupCustomInput } = getFoodRowInputs(row);
     if (!personId || !cooksInput || !cookingGroupSelect || !cookingGroupCustomInput) {
         return true;
@@ -2832,15 +2823,14 @@ function attachFoodRowValidation(row) {
 }
 
 function renderFoodWeekTable(entries) {
-    const personSelect = getElement("food-person-select");
     const weekLabel = getElement("food-add-week-label");
     const status = getElement("food-add-status");
     const tbody = getOptionalElement("#food-add-table tbody");
     const mobileList = getElement("food-add-mobile-list");
-    if (!personSelect || !weekLabel || !status || !tbody) {
+    if (!weekLabel || !status || !tbody) {
         return;
     }
-    const personId = personSelect.value || getSelectedPersonId();
+    const personId = getSelectedPersonId();
     const weekRows = getMealRowsForWeek(currentFoodAddWeekStart);
     const entryMap = getFoodEntriesMap(entries, personId);
 
@@ -2849,7 +2839,11 @@ function renderFoodWeekTable(entries) {
     if (mobileList) {
         mobileList.innerHTML = "";
     }
-    status.innerText = currentPeople.length ? "" : "Füge zuerst eine Person hinzu, bevor du Essen planst.";
+    status.innerText = !currentPeople.length
+        ? "Füge zuerst eine Person hinzu, bevor du Essen planst."
+        : !personId
+            ? "Bitte oben im Menü eine Person auswählen."
+            : "";
 
     weekRows.forEach((rowData) => {
         const entry = entryMap.get(`${rowData.date}|${rowData.mealType}`);
@@ -2957,17 +2951,16 @@ function goToTodayFoodAdd() {
 }
 
 async function saveFoodWeek() {
-    const personSelect = getElement("food-person-select");
     const status = getElement("food-add-status");
     const rows = getFoodPlanEntries();
-    if (!personSelect || !status) {
+    if (!status) {
         return;
     }
-    const personId = personSelect.value || getSelectedPersonId();
+    const personId = getSelectedPersonId();
     status.innerText = "";
 
     if (!personId) {
-        status.innerText = "Bitte eine Person auswählen.";
+        status.innerText = "Bitte oben im Menü eine Person auswählen.";
         return;
     }
 
@@ -3035,7 +3028,7 @@ async function saveFoodWeek() {
 function showFoodAdd() {
     setElementDisplay("food-add", "block");
     setElementDisplay("food-summary", "none");
-    syncPersonSelectors();
+    syncCurrentPersonSelect();
     if (getHouseToken()) {
         loadFoodWeekForAdd();
     }
@@ -3072,6 +3065,7 @@ function createFoodMealBuckets(entries) {
                 floorName,
                 entries: [],
                 cooks: [],
+                cookPersonIds: new Set(),
                 ownPeopleTotal: 0,
                 leftoversCount: 0,
                 latestTime: entry.eating_time || getDefaultMealTime(entry.meal_type),
@@ -3084,18 +3078,21 @@ function createFoodMealBuckets(entries) {
         }
 
         const bucket = buckets.get(key);
+        const guestCount = Number(entry.guests || 0);
         bucket.entries.push(entry);
-        if (entry.eats || entry.cooks) {
+        if (entry.eats || entry.cooks || guestCount > 0) {
             bucket.ownParticipantIds.add(String(entry.person_id));
         }
         if (entry.cooks) {
             bucket.cooks.push(entry.person_name);
+            bucket.cookPersonIds.add(String(entry.person_id));
         }
         if (entry.eats) {
-            bucket.ownPeopleTotal += 1 + Number(entry.guests || 0);
+            bucket.ownPeopleTotal += 1;
             bucket.ownEatNames.push(entry.person_name);
-            bucket.ownGuestNames.push(...normalizeGuestNames(entry.guest_names));
         }
+        bucket.ownPeopleTotal += guestCount;
+        bucket.ownGuestNames.push(...normalizeGuestNames(entry.guest_names));
         if (entry.take_leftovers_next_day) {
             bucket.leftoversCount += 1;
             bucket.leftoversNames.push(entry.person_name);
@@ -3123,21 +3120,27 @@ function buildAggregatedFoodRows(entries) {
 
     const rows = [];
     byMeal.forEach((mealBuckets) => {
+        const cookingBuckets = Array.from(mealBuckets.values()).filter((bucket) => bucket.cooks.length);
         const egBucket = mealBuckets.get("EG");
+        const fallbackBucket = egBucket?.cooks.length
+            ? egBucket
+            : cookingBuckets.length === 1
+                ? cookingBuckets[0]
+                : null;
         const dependentBuckets = Array.from(mealBuckets.values()).filter((bucket) => (
-            bucket.floorName !== "EG"
-            && !bucket.cooks.length
-            && Boolean(egBucket?.cooks.length)
+            !bucket.cooks.length
+            && Boolean(fallbackBucket)
         ));
 
         mealBuckets.forEach((bucket) => {
-            const sourceBucket = bucket.cooks.length ? bucket : (bucket.floorName !== "EG" && egBucket?.cooks.length ? egBucket : bucket);
+            const sourceBucket = bucket.cooks.length ? bucket : (fallbackBucket || bucket);
+            const isFallbackSource = sourceBucket === fallbackBucket && bucket === fallbackBucket;
             const ownTotal = bucket.ownPeopleTotal;
-            const additionalFloorPeopleTotal = bucket.floorName === "EG"
+            const additionalFloorPeopleTotal = isFallbackSource
                 ? dependentBuckets.reduce((sum, dependentBucket) => sum + dependentBucket.ownPeopleTotal, 0)
                 : 0;
             const ownLeftoversTotal = bucket.leftoversCount;
-            const dependentLeftoversTotal = bucket.floorName === "EG"
+            const dependentLeftoversTotal = isFallbackSource
                 ? dependentBuckets.reduce((sum, dependentBucket) => sum + dependentBucket.leftoversCount, 0)
                 : 0;
             const additionalLeftoversTotal = ownLeftoversTotal + dependentLeftoversTotal;
@@ -3160,11 +3163,14 @@ function buildAggregatedFoodRows(entries) {
                 combinedPeopleTotal: ownTotal + additionalTotal,
                 eatingTime: bucket.latestTime,
                 latestTime: bucket.latestTime,
-                personIds: Array.from(bucket.ownParticipantIds),
+                personIds: Array.from(new Set([
+                    ...bucket.ownParticipantIds,
+                    ...sourceBucket.cookPersonIds,
+                ])),
                 ownEatNames: bucket.ownEatNames,
                 ownGuestNames: bucket.ownGuestNames,
                 leftoversNames: bucket.leftoversNames,
-                additionalFloorDetails: bucket.floorName === "EG"
+                additionalFloorDetails: isFallbackSource
                     ? dependentBuckets.map((dependentBucket) => ({
                         floorName: dependentBucket.floorName,
                         eatNames: dependentBucket.ownEatNames,
@@ -3373,7 +3379,7 @@ async function renderActiveFoodViews() {
 function showGuestroomAdd() {
     setElementDisplay("guestroom-add", "block");
     setElementDisplay("guestroom-list", "none");
-    syncPersonSelectors();
+    syncCurrentPersonSelect();
     updateGuestroomFormUi();
 }
 
@@ -3412,7 +3418,7 @@ function resetGuestroomForm() {
     const endInput = getElement("guestroom-end");
     const status = getElement("guestroom-add-status");
     const roomInfo = getElement("guestroom-room-info");
-    syncPersonSelectors();
+    syncCurrentPersonSelect();
     if (roomSelect) {
         roomSelect.value = "";
     }
@@ -3436,16 +3442,13 @@ function resetGuestroomForm() {
 
 function editGuestroomBooking(booking) {
     editingGuestroomBookingId = booking.id;
+    selectCurrentPerson(booking.person_id);
     showGuestroomAdd();
-    const personSelect = getElement("guestroom-person-select");
     const roomSelect = getElement("guestroom-room-select");
     const guestInput = getElement("guestroom-guest");
     const startInput = getElement("guestroom-start");
     const endInput = getElement("guestroom-end");
     const status = getElement("guestroom-add-status");
-    if (personSelect) {
-        personSelect.value = String(booking.person_id);
-    }
     renderGuestroomRoomOptions();
     if (roomSelect) {
         roomSelect.value = booking.guest_room_id ? String(booking.guest_room_id) : "";
@@ -3506,22 +3509,22 @@ function formatGuestroomConflictMessage(conflicts) {
 }
 
 async function refreshGuestroomRoomInfo() {
-    const personSelect = getElement("guestroom-person-select");
     const roomSelect = getElement("guestroom-room-select");
     const startInput = getElement("guestroom-start");
     const endInput = getElement("guestroom-end");
     const roomInfo = getElement("guestroom-room-info");
-    if (!personSelect || !roomSelect || !startInput || !endInput || !roomInfo) {
+    if (!roomSelect || !startInput || !endInput || !roomInfo) {
         return;
     }
 
-    if (!personSelect.value || !startInput.value || !endInput.value) {
+    const personId = getSelectedPersonId();
+    if (!personId || !startInput.value || !endInput.value) {
         roomInfo.innerText = "";
         return;
     }
 
     const conflicts = await fetchGuestroomConflicts(
-        personSelect.value,
+        personId,
         roomSelect.value || null,
         startInput.value,
         endInput.value,
@@ -3530,16 +3533,15 @@ async function refreshGuestroomRoomInfo() {
 }
 
 async function saveGuestroomBooking() {
-    const personSelect = getElement("guestroom-person-select");
     const roomSelect = getElement("guestroom-room-select");
     const guestInput = getElement("guestroom-guest");
     const startInput = getElement("guestroom-start");
     const endInput = getElement("guestroom-end");
     const status = getElement("guestroom-add-status");
-    if (!personSelect || !roomSelect || !guestInput || !startInput || !endInput || !status) {
+    if (!roomSelect || !guestInput || !startInput || !endInput || !status) {
         return;
     }
-    const personId = personSelect.value;
+    const personId = getSelectedPersonId();
     const guestRoomId = roomSelect.value;
     const guestName = guestInput.value.trim();
     const startAt = roundDateTimeLocalValueToStep(startInput.value, 30);
@@ -3550,7 +3552,7 @@ async function saveGuestroomBooking() {
     endInput.value = endAt;
 
     if (!personId || !guestName || !startAt || !endAt) {
-        status.innerText = "Bitte alle Felder ausfüllen.";
+        status.innerText = "Bitte oben im Menü eine Person auswählen und alle Felder ausfüllen.";
         return;
     }
 
@@ -3732,16 +3734,11 @@ function initLaundryPage() {
 
 function initFoodPage() {
     const foodSection = getElement("food");
-    const foodPersonSelect = getElement("food-person-select");
     const foodAdd = getElement("food-add");
     const foodSummary = getElement("food-summary");
-    if (!foodSection || !foodPersonSelect || !foodAdd || !foodSummary) {
+    if (!foodSection || !foodAdd || !foodSummary) {
         return;
     }
-
-    foodPersonSelect.addEventListener("change", () => {
-        loadFoodWeekForAdd();
-    });
 
     updateBrunchAvailability();
 
@@ -3811,7 +3808,7 @@ function initHomePage() {
     updatePersonFormUi();
     updateGuestRoomFormUi();
     updateChoreFormUi();
-    syncPersonSelectors();
+    syncCurrentPersonSelect();
     showSection(getHouseToken() ? getActiveSection() : "home");
 }
 
@@ -3822,14 +3819,9 @@ function initGuestroomPage() {
     if (!guestroomSection || !guestroomAdd || !guestroomList) {
         return;
     }
-    const personSelect = getElement("guestroom-person-select");
     const roomSelect = getElement("guestroom-room-select");
     const startInput = getElement("guestroom-start");
     const endInput = getElement("guestroom-end");
-    personSelect?.addEventListener("change", () => {
-        renderGuestroomRoomOptions();
-        refreshGuestroomRoomInfo();
-    });
     roomSelect?.addEventListener("change", refreshGuestroomRoomInfo);
     startInput?.addEventListener("change", refreshGuestroomRoomInfo);
     endInput?.addEventListener("change", refreshGuestroomRoomInfo);
