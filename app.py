@@ -24,7 +24,8 @@ def _get_allowed_origins() -> list[str]:
 
 @app.on_event("startup")
 def on_startup():
-    init_db()
+    if os.getenv("RUN_DB_INIT", "true").lower() == "true":
+        init_db()
 
 app.add_middleware(
     CORSMiddleware,

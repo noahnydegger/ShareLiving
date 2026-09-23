@@ -2969,6 +2969,7 @@ async function saveFoodWeek() {
         return;
     }
 
+    const entries = [];
     for (const row of rows) {
         const eatsInput = getOptionalChild(row, ".food-eats");
         const cooksInput = getOptionalChild(row, ".food-cooks");
@@ -2993,7 +2994,7 @@ async function saveFoodWeek() {
             return;
         }
 
-        const payload = {
+        entries.push({
             person_id: Number(personId),
             date: row.dataset.date,
             meal_type: row.dataset.mealType,
@@ -3005,19 +3006,19 @@ async function saveFoodWeek() {
             eating_time: timeInput.value || getDefaultMealTime(row.dataset.mealType),
             time_changed: row.dataset.timeChanged === "true",
             cooking_group_name: getFoodRowGroupName(row),
-        };
-
-        const response = await apiFetch("/api/food", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload),
         });
+    }
 
-        if (!response.ok) {
-            const error = await response.text();
-            status.innerText = `Woche konnte nicht gespeichert werden: ${error}`;
-            return;
-        }
+    const response = await apiFetch("/api/food/batch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ entries }),
+    });
+
+    if (!response.ok) {
+        const error = await response.text();
+        status.innerText = `Woche konnte nicht gespeichert werden: ${error}`;
+        return;
     }
 
     status.innerText = "Woche gespeichert.";

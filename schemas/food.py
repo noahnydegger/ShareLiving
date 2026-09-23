@@ -1,7 +1,7 @@
 from datetime import date, datetime, time
 from typing import List, Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class FoodEntryCreate(BaseModel):
@@ -11,7 +11,7 @@ class FoodEntryCreate(BaseModel):
     eats: bool
     cooks: bool
     cook_helper: bool
-    guest_names: List[str] = []
+    guest_names: List[str] = Field(default_factory=list)
     take_leftovers_next_day: bool = False
     eating_time: Optional[time] = None
     time_changed: bool = False
@@ -31,7 +31,7 @@ class FoodEntryResponse(BaseModel):
     cooks: bool
     cook_helper: bool
     guests: int
-    guest_names: List[str] = []
+    guest_names: List[str] = Field(default_factory=list)
     take_leftovers_next_day: bool
     eating_time: time
     cooking_group_id: Optional[int] = None
@@ -49,3 +49,11 @@ class FoodSummaryItem(BaseModel):
 
 class FoodSummaryResponse(BaseModel):
     items: List[FoodSummaryItem]
+
+
+class FoodEntryBatchCreate(BaseModel):
+    entries: List[FoodEntryCreate] = Field(min_length=1, max_length=31)
+
+
+class FoodEntryBatchResponse(BaseModel):
+    saved: int

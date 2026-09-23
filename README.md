@@ -179,6 +179,7 @@ All active feature routes are mounted under `/homes/default`.
 - `GET /homes/default/api/food?start_date=&end_date=`
 - `GET /homes/default/api/food/summary?start_date=&end_date=`
 - `POST /homes/default/api/food`
+- `POST /homes/default/api/food/batch`
 
 ### Guestroom
 
@@ -205,6 +206,8 @@ Before deploying, set production secrets for:
 - `HOUSE_TOKEN_SECRET`
 - `HOUSE_TOKEN_TTL_SECONDS`
 - `ALLOWED_ORIGINS`
+
+Deployed environments set `RUN_DB_INIT=false` because schema changes are applied separately. Local development continues to initialize the schema automatically.
 
 ## Fly Production + Staging
 

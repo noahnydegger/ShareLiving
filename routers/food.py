@@ -4,7 +4,13 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from data.house_context import get_current_house_id
-from schemas.food import FoodEntryCreate, FoodEntryResponse, FoodSummaryResponse
+from schemas.food import (
+    FoodEntryBatchCreate,
+    FoodEntryBatchResponse,
+    FoodEntryCreate,
+    FoodEntryResponse,
+    FoodSummaryResponse,
+)
 from services import food_service
 
 
@@ -54,5 +60,20 @@ def save_food_entry(
             cooking_group_name=payload.cooking_group_name,
             notes=payload.notes,
         )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/batch", response_model=FoodEntryBatchResponse)
+def save_food_entries(
+    payload: FoodEntryBatchCreate,
+    house_id: int = Depends(get_current_house_id),
+):
+    try:
+        saved = food_service.create_or_update_food_entries(
+            house_id=house_id,
+            entries=[entry.model_dump() for entry in payload.entries],
+        )
+        return {"saved": saved}
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
