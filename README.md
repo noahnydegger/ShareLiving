@@ -1,5 +1,9 @@
 # ShareLiving
 
+The public ShareLiving site has moved to [the new WG app](https://www.dihei.org/wg-app/).
+The Fly.io deployments serve the static notice in `retirement/index.html`.
+The feature and development notes below describe the original app, which remains in this repository.
+
 ShareLiving is a small FastAPI app for shared houses and living groups.
 It is built around a house-based workflow:
 
@@ -188,77 +192,35 @@ All active feature routes are mounted under `/homes/default`.
 
 ## Deployment
 
-This repo includes:
+The container runs Nginx on port 8080 and serves the notice at `/` and `/index.html`.
+The `/health` endpoint returns `{"status":"ok"}`. The container needs no database or authentication settings.
 
-- `Dockerfile` for container builds
-- `fly.toml` for Fly.io deployment
-- `fly.staging.toml` for Fly.io staging deployment
-
-The Fly app is configured to run:
+Run locally from the repository root:
 
 ```bash
-/app/.venv/bin/uvicorn app:app --host 0.0.0.0 --port 8080
+docker build -t shareliving-transition .
+docker run --rm -p 127.0.0.1:8080:8080 shareliving-transition
 ```
 
-Before deploying, set production secrets for:
-
-- database connection strings
-- `HOUSE_TOKEN_SECRET`
-- `HOUSE_TOKEN_TTL_SECONDS`
-- `ALLOWED_ORIGINS`
-
-Deployed environments set `RUN_DB_INIT=false` because schema changes are applied separately. Local development continues to initialize the schema automatically.
-
-## Fly Production + Staging
-
-The repo is now set up for two Fly apps:
-
-- production via [`fly.toml`](/Users/noahnydegger/GitHub/Websites/ShareLiving/fly.toml) on the `main` branch
-- staging via [`fly.staging.toml`](/Users/noahnydegger/GitHub/Websites/ShareLiving/fly.staging.toml) on the `develop` branch
-
-GitHub Actions:
-
-- [`.github/workflows/fly-deploy.yml`](/Users/noahnydegger/GitHub/Websites/ShareLiving/.github/workflows/fly-deploy.yml) deploys production on pushes to `main`
-- [`.github/workflows/fly-deploy-staging.yml`](/Users/noahnydegger/GitHub/Websites/ShareLiving/.github/workflows/fly-deploy-staging.yml) deploys staging on pushes to `develop`
-
-### One-time staging setup
-
-1. Create a second Fly app:
+Deploy to staging and verify the notice, link, and health endpoint:
 
 ```bash
-flyctl apps create shareliving-staging
+fly deploy --remote-only -c fly.staging.toml
+curl -fsS https://shareliving-staging.fly.dev/
+curl -fsS https://shareliving-staging.fly.dev/health
 ```
 
-2. Create a separate Supabase project for staging and copy both connection strings:
-
-- pooled or async URL for `DATABASE_URL`
-- direct PostgreSQL URL for `SYNC_DATABASE_URL`
-
-3. Set staging secrets on the Fly staging app:
+After staging verification and production approval, deploy the same revision:
 
 ```bash
-flyctl secrets set \
-  DATABASE_URL="postgresql+asyncpg://..." \
-  SYNC_DATABASE_URL="postgresql://..." \
-  HOUSE_TOKEN_SECRET="replace-with-a-different-secret" \
-  HOUSE_TOKEN_TTL_SECONDS="604800" \
-  ALLOWED_ORIGINS="https://shareliving-staging.fly.dev" \
-  -a shareliving-staging
+fly deploy --remote-only -c fly.production.toml
+curl -fsS https://shareliving.fly.dev/
+curl -fsS https://shareliving.fly.dev/health
 ```
 
-4. Deploy staging once manually to verify everything:
+To restore the previous app, revert the retirement commit and redeploy with the restored Fly configuration.
 
-```bash
-flyctl deploy -c fly.staging.toml
-```
-
-### Notes
-
-- Use a different Supabase project or at least a different database for staging.
-- Use a different `HOUSE_TOKEN_SECRET` for staging and production.
-- If you want a custom staging domain later, update `ALLOWED_ORIGINS` to that domain too.
-
-### Secure Supabase public tables
+### Legacy app database maintenance
 
 ShareLiving accesses PostgreSQL only through FastAPI. The browser does not use the Supabase Data API directly. Apply `data/migrations/001_secure_supabase_public_tables.sql` in the Supabase SQL Editor to enable Row Level Security and remove direct access for the `anon` and `authenticated` Data API roles.
 

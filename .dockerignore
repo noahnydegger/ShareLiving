@@ -1,5 +1,4 @@
-fly.toml
-.git/
-__pycache__/
-.envrc
-.venv/
+**
+!retirement/
+!retirement/default.conf
+!retirement/index.html
